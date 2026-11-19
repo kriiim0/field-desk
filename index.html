@@ -353,7 +353,7 @@ V.home=()=>{
    <button class="stat" data-act="go" data-tab="issues"><b>${actI.length}</b><span>Open issues</span></button>
   </div>${banner}
   <div class="sectionhead"><h2>Needs attention</h2><button class="link" data-act="new" data-kind="task">+ Task</button></div>
-  ${listOr(attn,taskCard,items.size?'Nothing high-priority or overdue.':'Tap the red microphone and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}
+  ${listOr(attn,taskCard,items.size?'Nothing high-priority or overdue.':'Tap the red ✦ button and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}
   ${todayL.length?`<h2>Today &amp; in progress</h2>${listOr(todayL,taskCard)}`:''}
   ${agingI.length?`<h2>Issues waiting 7+ days</h2>${listOr(agingI,issueCard)}`:''}
   <h2>Open tasks by region</h2>
@@ -720,8 +720,8 @@ function cmdSheet(){
   cmdState={text:'',kind:null,parsed:null};aiPending=null;
   openSheet(`<div class="sheethead"><h2 style="margin:0">Say or type</h2><button class="btn small ghost" data-act="close">Close</button></div>
   <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><textarea class="cmd" id="cmdText" placeholder="Task follow up chiller quotation tomorrow high priority Jazan" autocapitalize="sentences"></textarea>
-  ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate">'+MICSVG+'</button>':SR?'<button class="mic" id="srBtn" data-act="sr" aria-label="Speak">'+MICSVG+'</button>':''}</div>
-  <div class="hint">${!dict&&SR?`<button class="lang" data-act="srlang">${srLang==='ar-SA'?'عربي':'English'}</button>`:''}<span>${aiOn()?'AI is on — say anything, in Arabic or English.':'Tap the microphone, or the microphone key on the keyboard.'}</span> <button class="link" data-act="more" data-v="${aiKey()?'help':'ai'}" data-close="1">${aiKey()?'Examples':'Turn on AI'}</button></div>
+  ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate">'+MICSVG+'</button>':''}</div>
+  <div class="hint"><span>${aiOn()?'AI is on — say anything, in Arabic or English.':'Tap the microphone, or the microphone key on the keyboard.'}</span> <button class="link" data-act="more" data-v="${aiKey()?'help':'ai'}" data-close="1">${aiKey()?'Examples':'Turn on AI'}</button></div>
   <button class="btn dark" data-act="readcmd" style="width:100%">${aiOn()?'Ask AI':'Read'}</button>
   <div id="cmdOut"></div>`);
   const t=$('#cmdText');if(t){try{t.focus({preventScroll:true})}catch(e){t.focus()}}
