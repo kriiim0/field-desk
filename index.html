@@ -155,6 +155,13 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 .morelist button{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-weight:700;font-size:17px}
 .morelist small{display:block;font-weight:400;color:var(--mute);font-size:13px}
 .contact a{color:var(--acc);font-weight:600;text-decoration:none}
+.aireply{background:var(--panel);border-radius:12px;padding:12px 14px;margin-top:12px;white-space:pre-wrap;line-height:1.6;unicode-bidi:plaintext}
+.actrow{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:11px 12px;cursor:pointer}
+.actrow input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--acc)}
+.actrow small{display:block;color:var(--mute);font-size:13px;margin-top:2px}
+.actrow.danger{border-color:var(--acc)}.actrow.danger b{color:var(--acc)}
+.steps{padding-left:20px;display:grid;gap:6px}.steps a{color:var(--acc);font-weight:700}
+.lang{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;font-weight:700;min-height:32px}
 .money{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
 </style>
 </head>
@@ -438,8 +445,10 @@ V.more=()=>{
   if(st.more==='reports')return reportsView();
   if(st.more==='help')return helpView();
   if(st.more==='data')return dataView();
+  if(st.more==='ai')return aiView();
   const O=all('opp');const pipe=O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0);
   return `<h1>More</h1><div class="morelist" style="margin-top:16px">
+  <button data-act="more" data-v="ai"><span>AI assistant<small>${aiKey()?'On · '+aiUsage().n+' requests this month':'Off — tap to turn on'}</small></span>›</button>
   <button data-act="more" data-v="reports"><span>Reports<small>Monthly report and yearly region comparison</small></span>›</button>
   <button data-act="more" data-v="opps"><span>Opportunities &amp; quotations<small>${O.filter(oppActive).length} open · ${money(pipe)}</small></span>›</button>
   <button data-act="more" data-v="help"><span>Voice commands guide<small>How to dictate tasks, issues, contacts, deals</small></span>›</button>
@@ -521,7 +530,8 @@ function reportsView(){
 
 function helpView(){
   return `${backBtn}<h1>Voice commands</h1>
-  <p>Tap the red microphone. On iPhone, tap the <b>microphone key on the keyboard</b> and speak, then press <b>Read</b>. You always see the result before saving, and can fix any field.</p>
+  <p><b>With the AI assistant on</b> (More › AI assistant) just talk normally, in Arabic or English: <span dir="rtl">"ذكرني بكرة أكلم أحمد من المشتريات عن عرض تشيلر مستشفى أبها، ضروري"</span>, <span dir="rtl">"خلصت مهمة زيارة جازان"</span>, <span dir="rtl">"وش عندي هالأسبوع؟"</span>, <span dir="rtl">"افتح تقرير الشهر"</span>, <span dir="rtl">"كم مشكلة مفتوحة في نجران؟"</span>. It shows every change before saving, with Undo.</p>
+  <p><b>Without AI</b> (or offline) the app uses the basic rules below.</p>
   <h2>Start with the type</h2>
   <div class="ex"><code><b>Task</b> follow up chiller quotation with Ahmed tomorrow high priority Jazan</code>
   <code><b>Issue</b> compressor parts delayed waiting for parts Najran</code>
@@ -704,14 +714,15 @@ function parseContact(s,o){
 }
 
 /* ---------- command sheet ---------- */
+const MICSVG='<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
 let cmdState={text:'',kind:null,parsed:null};
 function cmdSheet(){
-  cmdState={text:'',kind:null,parsed:null};
+  cmdState={text:'',kind:null,parsed:null};aiPending=null;
   openSheet(`<div class="sheethead"><h2 style="margin:0">Say or type</h2><button class="btn small ghost" data-act="close">Close</button></div>
   <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><textarea class="cmd" id="cmdText" placeholder="Task follow up chiller quotation tomorrow high priority Jazan" autocapitalize="sentences"></textarea>
-  ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>':''}</div>
-  <div class="hint">${dict?'Tap the microphone, or type.':'On iPhone: tap the box, then the microphone key on the keyboard, and speak.'} <button class="link" data-act="more" data-v="help" data-close="1">Examples</button></div>
-  <button class="btn dark" data-act="readcmd" style="width:100%">Read</button>
+  ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate">'+MICSVG+'</button>':SR?'<button class="mic" id="srBtn" data-act="sr" aria-label="Speak">'+MICSVG+'</button>':''}</div>
+  <div class="hint">${!dict&&SR?`<button class="lang" data-act="srlang">${srLang==='ar-SA'?'عربي':'English'}</button>`:''}<span>${aiOn()?'AI is on — say anything, in Arabic or English.':'Tap the microphone, or the microphone key on the keyboard.'}</span> <button class="link" data-act="more" data-v="${aiKey()?'help':'ai'}" data-close="1">${aiKey()?'Examples':'Turn on AI'}</button></div>
+  <button class="btn dark" data-act="readcmd" style="width:100%">${aiOn()?'Ask AI':'Read'}</button>
   <div id="cmdOut"></div>`);
   setTimeout(()=>{const t=$('#cmdText');t&&t.focus()},30);
 }
@@ -723,11 +734,234 @@ function showParsed(){
   <form class="f" id="ef" data-kind="${kind}" data-id="">${fields(kind,o)}<div class="actions"><button class="btn pri" type="submit">Save ${kind==='opp'?'deal':KNAME[kind].toLowerCase()}</button><button class="btn ghost" type="button" data-act="cmd">Clear</button></div></form>`;
 }
 let dictBuf='';
-function stopDict(){if(dict){try{dict.stop()}catch(e){}}}
+function stopDict(){if(dict){try{dict.stop()}catch(e){}}if(typeof srObj!=='undefined'&&srObj){try{srObj.abort()}catch(e){}srObj=null}}
 document.addEventListener('input',e=>{
   const t=e.target;
   if(t.dataset&&t.dataset.q){st[t.dataset.q]=t.value;const l=$('#list');if(l)l.innerHTML={tasks:taskList,issues:issueList,contacts:contactList}[st.tab]()}
 });
+
+
+/* ---------- AI assistant (Claude API, key stored on this phone) ---------- */
+const AIK='fielddesk.apikey',AIU='fielddesk.aiusage',AIMODEL='claude-haiku-5-5';
+const aiKey=()=>{try{return localStorage.getItem(AIK)||''}catch(e){return ''}};
+const aiOn=()=>!!aiKey()&&navigator.onLine!==false;
+let aiHist=[],aiHistAt=0,aiPending=null,aiBusy=false;
+const aiNames={};
+function aiUsage(){try{const u=JSON.parse(localStorage.getItem(AIU)||'{}');const m=today().slice(0,7);return u.m===m?u:{m,n:0,i:0,o:0}}catch(e){return {m:today().slice(0,7),n:0,i:0,o:0}}}
+function aiCount(usage){const u=aiUsage();u.n++;u.i+=usage&&usage.input_tokens||0;u.o+=usage&&usage.output_tokens||0;try{localStorage.setItem(AIU,JSON.stringify(u))}catch(e){}}
+const aiCost=u=>(u.i*0.10+u.o*0.50)/1e6;
+
+const AI_TOOL={name:'respond',description:'Reply to the user and list the actions to apply to the Field Desk data.',input_schema:{type:'object',properties:{
+  reply:{type:'string',description:'What to show the user. Same language the user used (Arabic if they wrote Arabic). Short for confirmations; for questions, a complete concise answer with the numbers/items asked for.'},
+  actions:{type:'array',description:'Changes or views to apply. Empty for pure questions answered in reply, or when you need to ask a clarifying question.',items:{type:'object',properties:{
+    op:{type:'string',enum:['create','update','delete','show','navigate']},
+    kind:{type:'string',enum:['task','issue','opp','contact','place']},
+    id:{type:'string',description:'Existing item id (update, delete, show).'},
+    ref:{type:'string',description:'Temporary id like "new1" for an item you create, so other actions in this response can link to it (e.g. fields.place:"new1").'},
+    fields:{type:'object',description:'Field values to set. Text in English.',additionalProperties:true},
+    addLog:{type:'string',description:'Issue progress note to append (English).'},
+    tab:{type:'string',enum:['home','tasks','issues','contacts','regions','reports','opps']},
+    region:{type:'string',description:'Region id for navigate to a region.'},
+    month:{type:'string',description:'YYYY-MM for navigate to a monthly report.'},
+    year:{type:'integer',description:'Year for navigate to a yearly report.'}
+  },required:['op']}}
+},required:['reply','actions']}};
+
+function aiSystem(){
+  const d=new Date();
+  return `You are the assistant inside "Field Desk", a personal work organizer used by a senior service sales engineer in HVAC aftermarket (chillers, AHUs, FCUs, package units, spare parts, service contracts/AMC, retrofits) covering three regions of southern Saudi Arabia. The user speaks Arabic (Saudi dialect) or English, often via iPhone dictation, so expect missing punctuation and misheard words; infer the intent.
+
+Today is ${DOW[d.getDay()]} ${today()} (Asia/Riyadh). The week starts Sunday; Friday and Saturday are the weekend. Resolve relative dates ("بكرة", "الأحد الجاي", "next week", "end of month", "بعد ٣ أيام") to YYYY-MM-DD.
+
+Always call the respond tool exactly once.
+
+DATA MODEL (all stored text must be English; translate Arabic, transliterate Arabic names to English letters, keep model numbers as said):
+- task: title, stage (TO DO|DOING|PENDING|DONE), priority (HIGH|LOW), due (YYYY-MM-DD), region, place, contact, notes
+- issue (problem waiting for a solution): title, status (OPEN|WAITING|RESOLVED), priority (HIGH|LOW), waitingOn (Customer|Spare parts|Internal dept|Supplier|Other), owner (who must act), region, place, contact, notes. Progress notes go in addLog.
+- opp (opportunity / quotation / contract / deal): title, description, amount (number, SAR), oppStage (LEAD|QUOTED|NEGOTIATION|WON|LOST), priority, due (next step or expected close), region, place, contact
+- contact: name, department, responsibility, company, region, phone, email, notes
+- place (governorate, city, site or customer inside a region): name, ptype (Governorate|City|Site|Customer), region, notes
+- region ids: asir (Asir, Aseer, عسير, Abha, Khamis Mushait), jazan (Jazan, Jizan, جازان), najran (Najran, نجران)
+
+RULES
+- New task defaults: stage TO DO, priority LOW. Use HIGH only if the user signals urgency or importance (urgent, important, asap, ضروري, مهم, عاجل, مستعجل, أولوية عالية).
+- New issue defaults: status OPEN; WAITING when it waits on someone, and set waitingOn/owner.
+- New opp defaults: oppStage LEAD (QUOTED if a quotation was already sent).
+- Link region, place and contact using ids from DATA. Match names loosely (Arabic or English spelling, first names). If the user names a place or person that does not exist yet and it is clearly a site/customer/person, create it first with a ref and link it. Infer region from a place's region.
+- "Done/خلصت/انتهيت" on a task = update stage DONE. Resolve an issue = status RESOLVED (+ addLog if they say how). Won/lost a deal = oppStage WON/LOST.
+- Update only the fields that change. Never delete unless the user clearly asks to delete/remove.
+- If it's unclear which existing item they mean and it matters, ask in reply and return no actions.
+- Questions (what do I have tomorrow, how many issues in Najran, report of this month, compare regions…) → answer in reply from DATA and STATS, and add show actions (max 10) for the items you mention. Use navigate when they ask to open a screen or report.
+- Several requests in one message → several actions.
+- Do not invent amounts, dates, phone numbers or people.`;
+}
+function aiData(){
+  const cut=Date.now()-120*864e5;
+  const P=(o,ks)=>{const r={};ks.forEach(k=>{const v=o[k];if(v!==undefined&&v!==null&&v!=='')r[k]=typeof v==='string'&&v.length>240?v.slice(0,240)+'…':v});return r};
+  const day=ts=>ts?dstr(new Date(ts)):undefined;
+  const tasks=all('task').filter(t=>isOpenT(t)||(t.doneAt||0)>cut).map(t=>Object.assign(P(t,['id','title','stage','priority','due','region','place','contact','notes']),{created:day(t.createdAt),done:day(t.doneAt)}));
+  const issues=all('issue').filter(i=>issueActive(i)||(i.resolvedAt||0)>cut).map(i=>Object.assign(P(i,['id','title','status','priority','waitingOn','owner','region','place','contact','notes']),{opened:day(i.createdAt),resolved:day(i.resolvedAt),updates:(i.log||[]).slice(-3).map(l=>day(l.t)+': '+l.text)}));
+  const y0=new Date().getFullYear();
+  const opps=all('opp').filter(o=>oppActive(o)||new Date(o.closedAt||o.updatedAt).getFullYear()>=y0-1).map(o=>Object.assign(P(o,['id','title','description','amount','oppStage','priority','due','region','place','contact']),{created:day(o.createdAt),closed:day(o.closedAt)}));
+  const contacts=all('contact').map(c=>P(c,['id','name','department','responsibility','company','region','phone','email']));
+  const places=all('place').map(p=>P(p,['id','name','ptype','region']));
+  const stats={};
+  [y0,y0-1].forEach(y=>{stats[y]={};[...REGIONS.map(r=>r.id),''].forEach(rid=>{
+    const a=new Date(y,0,1).getTime(),b=new Date(y+1,0,1).getTime();const f=o=>(o.region||'')===rid;
+    const mon=(arr,key)=>{const m=Array(12).fill(0);arr.forEach(o=>{if(inR(o[key],a,b))m[new Date(o[key]).getMonth()]++});return m};
+    const won=Array(12).fill(0);all('opp').filter(o=>f(o)&&o.oppStage==='WON'&&inR(o.closedAt,a,b)).forEach(o=>won[new Date(o.closedAt).getMonth()]+=(+o.amount||0));
+    stats[y][rid||'none']={tasksDone:mon(all('task').filter(t=>f(t)&&t.stage==='DONE'),'doneAt'),tasksCreated:mon(all('task').filter(f),'createdAt'),issuesOpened:mon(all('issue').filter(f),'createdAt'),issuesResolved:mon(all('issue').filter(i=>f(i)&&i.status==='RESOLVED'),'resolvedAt'),wonSAR:won};
+  })});
+  return JSON.stringify({places,contacts,tasks,issues,opportunities:opps,monthlyStats_JanToDec:stats});
+}
+async function aiCall(text){
+  if(Date.now()-aiHistAt>15*60e3)aiHist=[];
+  const msgs=aiHist.slice(-6).concat([{role:'user',content:`DATA:\n${aiData()}\n\nUSER MESSAGE:\n${text}`}]);
+  const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),45000);
+  let res;
+  try{
+    res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:ctl.signal,headers:{'content-type':'application/json','x-api-key':aiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:AIMODEL,max_tokens:2500,system:[{type:'text',text:aiSystem()}],tools:[AI_TOOL],tool_choice:{type:'tool',name:'respond'},messages:msgs})});
+  }finally{clearTimeout(tm)}
+  let j=null;try{j=await res.json()}catch(e){}
+  if(!res.ok){const m=(j&&j.error&&j.error.message)||'';const e=new Error(m);e.status=res.status;throw e}
+  aiCount(j.usage);
+  const tu=(j.content||[]).find(c=>c.type==='tool_use');
+  if(!tu)throw new Error('No answer');
+  const out=tu.input||{};
+  aiHist.push({role:'user',content:text});
+  aiHist.push({role:'assistant',content:(out.reply||'')+((out.actions||[]).length?`\n[proposed ${out.actions.length} action(s): ${(out.actions||[]).map(a=>a.op+' '+(a.kind||'')+' '+(a.id||(a.fields&&(a.fields.title||a.fields.name))||'')).join('; ')}]`:'')});
+  aiHistAt=Date.now();
+  return {reply:String(out.reply||''),actions:Array.isArray(out.actions)?out.actions:[]};
+}
+function aiErrMsg(e){
+  if(e.name==='AbortError')return 'The AI took too long. Try again.';
+  if(e.status===401)return 'The API key is not valid. Check it in More › AI assistant.';
+  if(e.status===400&&/credit|balance|billing/i.test(e.message))return 'Your API credit is used up. Add credit at platform.claude.com.';
+  if(e.status===429||e.status===529||e.status>=500)return 'The AI is busy right now. Try again in a moment.';
+  if(e.status===403)return 'This API key is not allowed to make this request.';
+  return 'Could not reach the AI'+(e.message?': '+e.message:'.');
+}
+/* validate AI fields against the data model */
+function aiFields(kind,f,refs){
+  const out={};if(!f||typeof f!=='object'||!SPEC[kind])return out;
+  for(const [k,,type,arr] of SPEC[kind]){
+    let v=f[k];if(v===undefined||v===null||v==='')continue;
+    if(type==='sel'){const m=arr.find(a=>a.toLowerCase()===String(v).toLowerCase().replace('todo','to do'));if(m)out[k]=m;continue}
+    if(type==='region'){const s=String(v).toLowerCase();const r=REGIONS.find(r=>r.id===s||r.name.toLowerCase()===s);if(r)out[k]=r.id;continue}
+    if(type==='place'||type==='contact'){const id=refs[v]||v;const it=get(id);if(it&&it.kind===type)out[k]=id;continue}
+    if(type==='date'){if(/^\d{4}-\d{2}-\d{2}$/.test(String(v)))out[k]=String(v);continue}
+    if(type==='num'){const n=Number(String(v).replace(/[^\d.]/g,''));if(isFinite(n))out[k]=n;continue}
+    out[k]=String(v).slice(0,3000);
+  }
+  if(out.place&&!out.region){const p=get(out.place);if(p)out.region=p.region}
+  return out;
+}
+const DEF={task:{stage:'TO DO',priority:'LOW'},issue:{status:'OPEN',priority:'LOW'},opp:{oppStage:'LEAD',priority:'LOW'},contact:{},place:{ptype:'Site'}};
+function aiDescribe(a){
+  const f=a.fields||{};const it=a.id&&get(a.id);const nm=o=>o?(o.title||o.name):'';
+  const bits=o=>{const b=[];if(o.stage)b.push(o.stage);if(o.status)b.push(o.status);if(o.oppStage)b.push(o.oppStage);if(o.priority==='HIGH')b.push('HIGH');if(o.due)b.push(fmtD(o.due));if(o.amount)b.push(money(o.amount));const w=[rname(o.region),o.place&&((get(o.place)||{}).name||aiNames[o.place])].filter(Boolean).join(' › ');if(w)b.push(w);if(o.contact)b.push((get(o.contact)||{}).name||aiNames[o.contact]||'');if(o.waitingOn)b.push('waiting on '+o.waitingOn);if(o.department)b.push(o.department);if(o.responsibility)b.push(o.responsibility);if(o.ptype)b.push(o.ptype);return b.join(' · ')};
+  if(a.op==='create')return {t:`New ${KNAME[a.kind]||a.kind}: ${f.title||f.name||''}`,s:bits(Object.assign({},a._preview||f))};
+  if(a.op==='update')return {t:`Update: ${nm(it)}`,s:[bits(a._preview||{}),a.addLog?'note: '+a.addLog:''].filter(Boolean).join(' · ')};
+  if(a.op==='delete')return {t:`Delete ${KNAME[it&&it.kind]||''}: ${nm(it)}`,s:'',danger:true};
+  return {t:'',s:''};
+}
+function aiPrepare(actions){
+  // resolve refs, validate, build previews; creates of places/contacts first
+  const refs={};const ok=[];
+  const order=a=>a.op==='create'&&(a.kind==='place'||a.kind==='contact')?0:a.op==='create'?1:2;
+  actions.slice().sort((a,b)=>order(a)-order(b)).forEach(a=>{
+    if(!a||!a.op)return;
+    if(a.op==='create'){if(!SPEC[a.kind])return;const id=uid(a.kind);if(a.ref)refs[a.ref]=id;a._newId=id;ok.push(a);return}
+    if(a.op==='update'||a.op==='delete'||a.op==='show'){if(a.id&&get(a.id))ok.push(a);return}
+    if(a.op==='navigate')ok.push(a);
+  });
+  // temporarily expose new ids for linking during validation
+  const tmp=[];ok.filter(a=>a.op==='create'&&(a.kind==='place'||a.kind==='contact')).forEach(a=>{const ff=aiFields(a.kind,a.fields,{});if(ff.name||ff.title){items.set(a._newId,Object.assign({id:a._newId,kind:a.kind},ff));tmp.push(a._newId);aiNames[a._newId]=ff.name||ff.title}});
+  ok.forEach(a=>{
+    if(a.op==='create'){a._preview=Object.assign({},DEF[a.kind],aiFields(a.kind,a.fields,refs))}
+    if(a.op==='update'){const it=get(a.id);a._preview=aiFields(it.kind,a.fields,refs);a.kind=it.kind}
+  });
+  tmp.forEach(id=>items.delete(id));
+  return ok.filter(a=>a.op!=='create'||(a._preview.title||a._preview.name)).filter(a=>a.op!=='update'||Object.keys(a._preview).length||a.addLog);
+}
+function aiRender(res){
+  const out=$('#cmdOut');if(!out)return;
+  const acts=aiPrepare(res.actions);
+  const changes=acts.filter(a=>a.op==='create'||a.op==='update'||a.op==='delete');
+  const shows=acts.filter(a=>a.op==='show').map(a=>get(a.id)).filter(Boolean);
+  const nav=acts.find(a=>a.op==='navigate');
+  aiPending={changes,nav};
+  const card=o=>o.kind==='task'?taskCard(o):o.kind==='issue'?issueCard(o):o.kind==='opp'?oppCard(o):o.kind==='contact'?contactCard(o):`<article class="card" data-act="edit" data-id="${o.id}"><div class="body"><div class="t">${esc(o.name)}</div><div class="meta">${esc(o.ptype||'')} · ${rname(o.region)}</div></div></article>`;
+  out.innerHTML=`${res.reply?`<div class="aireply" dir="auto">${esc(res.reply)}</div>`:''}
+  ${changes.length?`<div class="list" style="margin-top:10px">${changes.map((a,i)=>{const d=aiDescribe(a);return `<label class="actrow${d.danger?' danger':''}"><input type="checkbox" data-ai="${i}" checked><span><b>${esc(d.t)}</b>${d.s?`<small>${esc(d.s)}</small>`:''}</span></label>`}).join('')}</div>
+  <div class="actions"><button class="btn pri" data-act="aiapply">Apply ${changes.length>1?changes.length+' changes':'change'}</button><button class="btn ghost" data-act="cmd">Cancel</button></div>`:''}
+  ${shows.length?`<div class="list" style="margin-top:10px">${shows.map(card).join('')}</div>`:''}
+  ${nav&&!changes.length?`<div class="actions"><button class="btn dark" data-act="ainav">Open ${esc(nav.tab||'')}</button></div>`:''}`;
+}
+function aiApply(){
+  if(!aiPending)return;
+  const boxes=[...document.querySelectorAll('[data-ai]')];
+  const chosen=aiPending.changes.filter((a,i)=>{const b=boxes.find(x=>+x.dataset.ai===i);return !b||b.checked});
+  const undo=[];let n=0;
+  chosen.forEach(a=>{
+    if(a.op==='create'){const o=applyTransitions(Object.assign({id:a._newId,kind:a.kind},a._preview),null);put(o,true);undo.push(()=>remove(o.id));n++}
+    if(a.op==='update'){const it=get(a.id);if(!it)return;const prev=JSON.parse(JSON.stringify(it));const o=Object.assign({},it,a._preview);if(a.addLog)o.log=(o.log||[]).concat({t:Date.now(),text:a.addLog});applyTransitions(o,prev);put(o,true);undo.push(()=>put(prev,true));n++}
+    if(a.op==='delete'){const it=get(a.id);if(!it)return;const prev=JSON.parse(JSON.stringify(it));items.delete(a.id);saveLocal();if(col)write(a.id,()=>col.doc(a.id).delete());undo.push(()=>put(prev,true));n++}
+  });
+  const nav=aiPending.nav;aiPending=null;closeSheet();
+  if(nav)aiNavigate(nav);else render();
+  if(n)toast(`${n} change${n>1?'s':''} applied`,()=>{undo.reverse().forEach(f=>f());render()});
+}
+function aiNavigate(a){
+  const t=a.tab||'home';
+  if(t==='reports'){st.tab='more';st.more='reports';if(a.year&&!a.month){st.rep='year';st.repYear=a.year}else{st.rep='month';if(a.month&&/^\d{4}-\d{2}$/.test(a.month))st.repMonth=a.month}if(a.region)st.repRegion=a.region}
+  else if(t==='opps'){st.tab='more';st.more='opps'}
+  else if(t==='regions'){st.tab='regions';st.region=REGIONS.some(r=>r.id===a.region)?a.region:null;st.rTab='tasks';st.rPlace=''}
+  else if(['home','tasks','issues','contacts'].includes(t))st.tab=t;
+  window.scrollTo(0,0);render();
+}
+async function aiRun(text){
+  if(aiBusy)return;const out=$('#cmdOut');
+  if(!aiOn()){cmdState.text=text;cmdState.parsed=parseCmd(text);if(!navigator.onLine&&aiKey())toast('Offline — using basic understanding');return showParsed()}
+  aiBusy=true;const btn=$('[data-act="readcmd"]');if(btn){btn.disabled=true;btn.textContent='Thinking…'}
+  if(out)out.innerHTML='<div class="sub" style="padding:14px 0">Understanding your request…</div>';
+  try{const res=await aiCall(text);aiRender(res)}
+  catch(e){toast(aiErrMsg(e));cmdState.text=text;cmdState.parsed=parseCmd(text);showParsed();const o2=$('#cmdOut');if(o2)o2.insertAdjacentHTML('afterbegin','<div class="sub" style="margin:8px 0">AI unavailable — basic understanding used below.</div>')}
+  finally{aiBusy=false;const b=$('[data-act="readcmd"]');if(b){b.disabled=false;b.textContent=aiOn()?'Ask AI':'Read'}}
+}
+function aiView(){
+  const k=aiKey();const u=aiUsage();
+  return `${backBtn}<h1>AI assistant</h1>
+  <p>${k?'<b style="color:var(--ok)">On.</b> Speak or type anything — add, update, finish, delete, ask questions, open reports. You review every change before it is saved.':'<b>Off.</b> Add your Claude API key to turn it on. Until then, commands use the basic built-in understanding.'}</p>
+  ${k?`<div class="kpis" style="margin:12px 0"><div class="kpi"><b>${u.n}</b><span>Requests this month</span></div><div class="kpi"><b style="font-size:24px">$${aiCost(u).toFixed(3)}</b><span>Approx. cost this month</span></div><div class="kpi"><b style="font-size:20px">Haiku 5.5</b><span>Model</span></div></div>`:''}
+  <form class="f" id="aiForm"><label>Claude API key<input name="key" type="password" autocomplete="off" placeholder="sk-ant-…" value="${esc(k)}"></label>
+  <div class="actions"><button class="btn pri" type="submit">Save key</button>${k?'<button class="btn ghost" type="button" data-act="aitest">Test</button><button class="btn danger" type="button" data-act="aidel">Remove</button>':''}</div></form>
+  <h2>How to get a key (one time)</h2>
+  <ol class="steps"><li>Open <a href="https://platform.claude.com" target="_blank" rel="noopener">platform.claude.com</a> and create an account.</li>
+  <li>Billing: add a small credit, and set a <b>monthly spend limit</b> (e.g. $5) for safety.</li>
+  <li>API keys: create a key, copy it, paste it above and tap Save.</li></ol>
+  <p class="sub">The key is stored only on this phone. When you use the assistant, your message and the app data it needs (tasks, issues, deals, contacts, places) are sent to Anthropic to process the request. Everything else stays on the phone. Without internet the app falls back to basic understanding.</p>`;
+}
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='aiForm')return;e.preventDefault();
+  const v=e.target.elements.key.value.trim();
+  try{if(v)localStorage.setItem(AIK,v);else localStorage.removeItem(AIK)}catch(err){}
+  toast(v?'Key saved':'Key removed');render();
+});
+/* browser speech recognition where available (keyboard dictation always works) */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let srObj=null,srLang=(()=>{try{return localStorage.getItem('fielddesk.srlang')||'ar-SA'}catch(e){return 'ar-SA'}})();
+function srStart(){
+  if(!SR)return;if(srObj){try{srObj.stop()}catch(e){}return}
+  const ta=$('#cmdText');const base=ta.value?ta.value.trim()+' ':'';
+  try{srObj=new SR()}catch(e){toast('Use the microphone on the keyboard');return}
+  srObj.lang=srLang;srObj.interimResults=true;srObj.continuous=false;
+  srObj.onresult=ev=>{let s='';for(const r of ev.results)s+=r[0].transcript;const t=$('#cmdText');if(t)t.value=base+s};
+  srObj.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')toast('Microphone blocked — use the microphone on the keyboard')};
+  srObj.onend=()=>{srObj=null;const b=$('#srBtn');if(b)b.classList.remove('live');const t=$('#cmdText');if(t&&t.value.trim())aiRun(t.value.trim())};
+  $('#srBtn').classList.add('live');
+  try{srObj.start()}catch(e){srObj=null;$('#srBtn').classList.remove('live');toast('Use the microphone on the keyboard')}
+}
 
 /* ---------- actions ---------- */
 let pendingDel=null;
@@ -751,7 +985,13 @@ document.addEventListener('click',e=>{
     if(pendingDel!==id){pendingDel=id;el.textContent='Tap again to delete';setTimeout(()=>{if(pendingDel===id)pendingDel=null},3000);return}
     pendingDel=null;const o=remove(id);closeSheet();toast(`${KNAME[o.kind]} deleted`,()=>put(o));return}
   if(a==='cmd')return cmdSheet();
-  if(a==='readcmd'){const t=$('#cmdText');cmdState.text=t.value;cmdState.parsed=t.value.trim()?parseCmd(t.value):null;if(!cmdState.parsed)return toast('Say or type something first');return showParsed()}
+  if(a==='readcmd'){const t=$('#cmdText');const v=t.value.trim();if(!v)return toast('Say or type something first');if(aiOn())return aiRun(v);cmdState.text=v;cmdState.parsed=parseCmd(v);return showParsed()}
+  if(a==='aiapply')return aiApply();
+  if(a==='ainav'){const n=aiPending&&aiPending.nav;closeSheet();if(n)aiNavigate(n);return}
+  if(a==='sr')return srStart();
+  if(a==='srlang'){srLang=srLang==='ar-SA'?'en-US':'ar-SA';try{localStorage.setItem('fielddesk.srlang',srLang)}catch(e){}el.textContent=srLang==='ar-SA'?'عربي':'English';return}
+  if(a==='aidel'){try{localStorage.removeItem(AIK)}catch(e){}toast('Key removed');return render()}
+  if(a==='aitest'){el.textContent='Testing…';fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':aiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:AIMODEL,max_tokens:5,messages:[{role:'user',content:'Reply OK'}]})}).then(async r=>{if(r.ok){toast('Connected — AI is working');return}let j={};try{j=await r.json()}catch(e){}const er=new Error((j.error||{}).message||'');er.status=r.status;throw er}).catch(e=>toast(aiErrMsg(e))).finally(()=>{el.textContent='Test'});return}
   if(a==='kind'){const f=$('#ef');let cur=cmdState.parsed;if(f){const k0=f.dataset.kind;cur=Object.assign({},readForm(f,k0,{}),{kind:k0})}
     const k=el.dataset.v;const txt=cur.title||cur.name||'';
     cmdState.parsed=Object.assign({},cur,{kind:k,title:txt,name:txt});
@@ -764,7 +1004,7 @@ document.addEventListener('click',e=>{
     const ta=$('#cmdText');dictBuf=ta.value?ta.value.trim()+' ':'';
     dict.onPartial(({text})=>{const t=$('#cmdText');if(t)t.value=dictBuf+text});
     dict.onFinal(({text})=>{dictBuf+=text+' ';const t=$('#cmdText');if(t)t.value=dictBuf});
-    dict.onState(({state})=>{const b=$('#micBtn');if(b)b.classList.toggle('live',state==='listening');if(state==='idle'){const t=$('#cmdText');if(t&&t.value.trim()){cmdState.text=t.value;cmdState.parsed=parseCmd(t.value);showParsed()}}});
+    dict.onState(({state})=>{const b=$('#micBtn');if(b)b.classList.toggle('live',state==='listening');if(state==='idle'){const t=$('#cmdText');if(t&&t.value.trim()){if(aiOn())return aiRun(t.value.trim());cmdState.text=t.value;cmdState.parsed=parseCmd(t.value);showParsed()}}});
     dict.start().catch(err=>{if(err&&err.code==='not_granted')toast('Microphone not allowed — type instead')});
     return}
   if(a==='export'){
