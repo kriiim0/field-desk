@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Field Desk">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<title>Field Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Sofia+Sans+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: calm, dense work tool for a busy field sales engineer — no decoration, fast to scan
+   IDEA: a dispatcher's job board: stages as lanes, regions as territories, HIGH marked in red
+   PICTURE: the live board itself — today's attention list large at the top of Home
+   COLOUR and TYPE: white / ink / vermilion #ff4a1c reserved for HIGH + actions; Sofia Sans Condensed + Instrument Sans
+   LAYOUT: one column up to 760px, bottom tab bar, floating command button */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#110d0b);--panel:light-dark(#f5f3f1,#1c1714);--ink:light-dark(#121212,#f3efec);
+--mute:light-dark(#6a635f,#a69d97);--line:light-dark(#e4e0dd,#2f2825);--acc:light-dark(#ff4a1c,#ff6a40);
+--accsoft:light-dark(#fff0eb,#3a1a10);--ok:light-dark(#1d7a4c,#5fd296);--warn:light-dark(#a86400,#f2b450);--chip:light-dark(#ebe7e4,#29221e)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Instrument Sans",system-ui,-apple-system,sans-serif;overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.wrap{max-width:760px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) max(4vw,16px) calc(env(safe-area-inset-bottom) + 150px)}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.brand{font:800 26px/1 "Sofia Sans Condensed",sans-serif;letter-spacing:.2px}
+.brand b{color:var(--acc)}
+.sync{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--mute);display:inline-block}
+.sync.ok i{background:var(--ok)}.sync.err i{background:var(--acc)}
+h1,h2,h3{font-family:"Sofia Sans Condensed",sans-serif;font-weight:800;line-height:1.05;margin:0}
+h1{font-size:clamp(32px,8vw,44px);text-wrap:balance}
+h2{font-size:24px;margin:26px 0 10px}
+h3{font-size:19px}
+.sub{color:var(--mute);font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:16px 0}
+.stat{background:var(--panel);border-radius:12px;padding:10px 12px;border:0;text-align:left}
+.stat b{display:block;font:800 clamp(28px,7vw,38px)/1 "Sofia Sans Condensed",sans-serif}
+.stat span{font-size:13px;color:var(--mute)}
+.stat.hot{background:var(--acc);color:#fff}.stat.hot span{color:#fff;opacity:.9}
+@media(max-width:420px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.banner{background:var(--ink);color:var(--bg);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;margin:12px 0;border:0;width:100%;text-align:left}
+.banner b{font-weight:700}
+.list{display:flex;flex-direction:column;gap:8px}
+.card{display:flex;align-items:flex-start;gap:10px;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px;cursor:pointer}
+.card.hi{border-color:var(--acc);box-shadow:inset 4px 0 0 var(--acc)}
+.card .body{flex:1}
+.card .t{font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.card.done .t{text-decoration:line-through;color:var(--mute)}
+.meta{font-size:13px;color:var(--mute);margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.meta .late{color:var(--acc);font-weight:600}
+.check{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:none;margin-top:1px;display:grid;place-items:center;padding:0}
+.check.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.pill{flex:none;font-size:12px;font-weight:700;padding:5px 9px;border-radius:999px;background:var(--chip);border:0;white-space:nowrap;letter-spacing:.2px}
+.pill.DOING{background:light-dark(#e3efff,#16294a);color:light-dark(#1550a8,#8fb8ff)}
+.pill.PENDING{background:light-dark(#fff3dc,#3a2a0c);color:var(--warn)}
+.pill.DONE,.pill.WON,.pill.RESOLVED{background:light-dark(#e2f4ea,#11301f);color:var(--ok)}
+.pill.HIGH,.pill.OPEN{background:var(--accsoft);color:var(--acc)}
+.pill.LOST{color:var(--mute)}
+.tag{font-size:11px;font-weight:700;color:#fff;background:var(--acc);border-radius:4px;padding:1px 5px;margin-right:6px;vertical-align:2px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:8px 13px;font-size:14px;font-weight:600;min-height:38px;white-space:nowrap}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.red.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.search{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-size:16px;margin-bottom:10px}
+.btn{border:0;border-radius:12px;padding:12px 16px;font-weight:700;min-height:44px;background:var(--chip)}
+.btn.pri{background:var(--acc);color:#fff}
+.btn.dark{background:var(--ink);color:var(--bg)}
+.btn.ghost{background:none;border:1px solid var(--line)}
+.btn.small{min-height:36px;padding:7px 12px;font-size:14px}
+.btn.danger{background:none;color:var(--acc);border:1px solid var(--acc)}
+.empty{padding:22px 16px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px;font-size:15px}
+.sectionhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.sectionhead h2{margin-bottom:10px}
+.link{background:none;border:0;color:var(--acc);font-weight:700;padding:6px 0;font-size:14px}
+.regions{display:grid;gap:10px}
+.region{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--bg);text-align:left;width:100%}
+.region h3{font-size:26px}
+.rgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.rgrid div{font-size:12px;color:var(--mute)}
+.rgrid b{display:block;font:800 22px/1.1 "Sofia Sans Condensed",sans-serif;color:var(--ink)}
+.bar{height:8px;background:var(--chip);border-radius:6px;overflow:hidden;margin-top:10px;display:flex}
+.bar i{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mute);font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.kpi{background:var(--panel);border-radius:12px;padding:10px 12px}
+.kpi b{display:block;font:800 30px/1 "Sofia Sans Condensed",sans-serif}
+.kpi span{font-size:13px;color:var(--mute)}
+.kpi em{font-style:normal;font-size:12px;font-weight:700}
+.up{color:var(--ok)}.down{color:var(--acc)}
+.months{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;align-items:end;height:160px;margin-top:10px;border-bottom:1px solid var(--line)}
+.months .m{display:flex;gap:2px;align-items:end;height:100%;justify-content:center}
+.months .m i{display:block;width:42%;max-width:14px;background:var(--ink);border-radius:3px 3px 0 0;min-height:2px}
+.months .m i.prev{background:var(--chip)}
+.mlab{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;font-size:11px;color:var(--mute);text-align:center;margin-top:4px}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+/* nav */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:6px 4px calc(env(safe-area-inset-bottom) + 6px);display:grid;grid-template-columns:repeat(6,minmax(0,1fr));z-index:20}
+nav.tabs button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:600;color:var(--mute);padding:6px 0;position:relative;min-height:48px}
+nav.tabs button.on{color:var(--ink)}
+nav.tabs svg{width:23px;height:23px}
+nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--acc);color:#fff;font-size:10px;font-weight:700;border-radius:9px;min-width:17px;height:17px;line-height:17px;padding:0 4px}
+.fab{position:fixed;right:max(4vw,16px);bottom:calc(env(safe-area-inset-bottom) + 78px);width:62px;height:62px;border-radius:50%;background:var(--acc);color:#fff;border:0;box-shadow:0 8px 24px rgba(255,74,28,.35);display:grid;place-items:center;z-index:21}
+.fab svg{width:28px;height:28px}
+@media(min-width:800px){.fab{right:calc(50% - 370px)}}
+/* sheet */
+.veil{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none}
+.veil.on{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92vh;overflow:auto;background:var(--bg);border-radius:18px 18px 0 0;z-index:41;padding:16px max(4vw,16px) calc(env(safe-area-inset-bottom) + 20px);transform:translateY(105%);transition:transform .22s ease;max-width:760px;margin:0 auto}
+.sheet.on{transform:none;visibility:visible}
+.sheet:not(.on){visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
+@media(prefers-reduced-motion:reduce){.sheet{transition:none}}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheethead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.f{display:grid;gap:12px}
+.f label{display:grid;gap:4px;font-size:13px;font-weight:600;color:var(--mute)}
+.f input,.f select,.f textarea{font-size:16px;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel);min-height:44px;width:100%;color:var(--ink)}
+.f textarea{min-height:80px;resize:vertical}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.actions .btn{flex:1}
+.cmd{width:100%;min-height:96px;font-size:18px;padding:14px;border-radius:14px;border:2px solid var(--ink);background:var(--bg);resize:vertical}
+.hint{font-size:13px;color:var(--mute);margin:8px 0 12px;display:flex;gap:8px;align-items:center}
+.mic{width:48px;height:48px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);display:grid;place-items:center;flex:none}
+.mic.live{background:var(--acc);color:#fff}
+.kindsw{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:var(--panel);padding:4px;border-radius:12px;margin:12px 0}
+.kindsw button{border:0;background:none;border-radius:9px;padding:9px 4px;font-weight:700;font-size:14px}
+.kindsw button.on{background:var(--bg);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.log{border-left:2px solid var(--line);padding-left:12px;display:grid;gap:8px;font-size:14px}
+.log small{color:var(--mute);display:block}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 150px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:11px 16px;border-radius:12px;font-size:14px;z-index:60;display:none;align-items:center;gap:14px;max-width:92vw}
+.toast.on{display:flex}
+.toast button{background:none;border:0;color:var(--acc);font-weight:700}
+.ex{font-size:14px;display:grid;gap:6px}
+.ex code{display:block;background:var(--panel);padding:8px 10px;border-radius:8px;font-family:inherit;overflow-wrap:anywhere}
+.ar{direction:rtl;text-align:right}
+.morelist{display:grid;gap:8px}
+.morelist button{display:flex;justify-content:space-between;align-items:center;text-align:left;padding:16px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-weight:700;font-size:17px}
+.morelist small{display:block;font-weight:400;color:var(--mute);font-size:13px}
+.contact a{color:var(--acc);font-weight:600;text-decoration:none}
+.money{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">Field<b>Desk</b></div>
+    <div class="sync" id="sync"><i></i><span>Starting…</span></div>
+  </header>
+  <main id="main"></main>
+</div>
+
+<button class="fab" data-act="cmd" aria-label="Voice or typed command">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+</button>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</button>
+  <button data-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/></svg>Tasks<span class="badge" id="b-tasks" hidden></span></button>
+  <button data-tab="issues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/></svg>Issues<span class="badge" id="b-issues" hidden></span></button>
+  <button data-tab="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 5.2a3.3 3.3 0 0 1 0 6M18 14.6c2 .7 3.2 2.5 3.6 5.4"/></svg>Contacts</button>
+  <button data-tab="regions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Regions</button>
+  <button data-tab="more"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</button>
+</nav>
+
+<div class="veil" id="veil" data-act="close"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"><span></span><button id="toastBtn" hidden>Undo</button></div>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<script>
+{
+/* ---------- constants ---------- */
+const REGIONS=[{id:'asir',name:'Asir'},{id:'jazan',name:'Jazan'},{id:'najran',name:'Najran'}];
+const RCOL={asir:'#ff4a1c',jazan:'#1550a8',najran:'#1d7a4c'};
+const STAGES=['TO DO','DOING','PENDING','DONE'];
+const PRI=['HIGH','LOW'];
+const ISTAT=['OPEN','WAITING','RESOLVED'];
+const WAITON=['Customer','Spare parts','Internal dept','Supplier','Other'];
+const OSTAGES=['LEAD','QUOTED','NEGOTIATION','WON','LOST'];
+const PTYPES=['Governorate','City','Site','Customer'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const SPEC={
+ task:[['title','Title','text'],['stage','Stage','sel',STAGES],['priority','Priority','sel',PRI],['due','Due date','date'],['region','Region','region'],['place','Place','place'],['contact','Contact','contact'],['notes','Notes','area']],
+ issue:[['title','Issue','text'],['status','Status','sel',ISTAT],['priority','Priority','sel',PRI],['waitingOn','Waiting on','sel',WAITON],['owner','Who must act','text'],['region','Region','region'],['place','Place','place'],['contact','Contact','contact'],['notes','Details','area']],
+ opp:[['title','Opportunity','text'],['description','Description','area'],['amount','Amount (SAR)','num'],['oppStage','Stage','sel',OSTAGES],['priority','Priority','sel',PRI],['due','Next step / close date','date'],['region','Region','region'],['place','Place','place'],['contact','Contact','contact']],
+ contact:[['name','Name','text'],['department','Department','text'],['responsibility','Responsibility','text'],['company','Company / side','text'],['region','Region','region'],['phone','Mobile (optional)','tel'],['email','Email (optional)','email'],['notes','Notes','area']],
+ place:[['name','Name','text'],['ptype','Type','sel',PTYPES],['region','Region','region'],['notes','Notes','area']]
+};
+const KNAME={task:'Task',issue:'Issue',opp:'Opportunity',contact:'Contact',place:'Place'};
+
+/* ---------- utils ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=k=>k[0]+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const pad=n=>String(n).padStart(2,'0');
+const dstr=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const today=()=>dstr(new Date());
+const parseD=s=>{const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)};
+const addDays=(s,n)=>{const d=parseD(s);d.setDate(d.getDate()+n);return dstr(d)};
+const fmtD=s=>{if(!s)return'';const d=parseD(s);const t=today();if(s===t)return'Today';if(s===addDays(t,1))return'Tomorrow';if(s===addDays(t,-1))return'Yesterday';return DOW[d.getDay()]+' '+d.getDate()+' '+MON[d.getMonth()]};
+const fmtTs=ts=>{const d=new Date(ts);return d.getDate()+' '+MON[d.getMonth()]+' '+d.getFullYear()};
+const daysSince=ts=>Math.max(0,Math.floor((Date.now()-ts)/864e5));
+const money=n=>(Number(n)||0).toLocaleString('en-US')+' SAR';
+const rname=id=>(REGIONS.find(r=>r.id===id)||{}).name||'';
+const opt=(arr,v,blank)=>(blank!==undefined?`<option value="">${blank}</option>`:'')+arr.map(a=>{const [val,lab]=Array.isArray(a)?a:[a,a];return `<option value="${esc(val)}"${val===v?' selected':''}>${esc(lab)}</option>`}).join('');
+
+/* ---------- store ---------- */
+const LS='fielddesk.items.v1';
+let items=new Map(),col=null,dict=null,dl=null;
+const queue={};
+try{JSON.parse(localStorage.getItem(LS)||'[]').forEach(o=>o&&o.id&&items.set(o.id,o))}catch(e){}
+const saveLocal=()=>{try{localStorage.setItem(LS,JSON.stringify([...items.values()]))}catch(e){}};
+const all=k=>[...items.values()].filter(o=>o.kind===k);
+const get=id=>items.get(id);
+function syncErr(e){const c=e&&e.code;toast(c==='quota_exceeded'?'Storage is full — delete old items or export a backup.':'Could not sync a change. It is kept on this device.')}
+function write(id,fn){
+  queue[id]=(queue[id]||Promise.resolve()).then(fn).catch(e=>{
+    if(e&&e.code==='unavailable')return new Promise(r=>setTimeout(r,700+Math.random()*900)).then(fn).catch(syncErr);
+    syncErr(e);
+  });
+}
+const clean=o=>JSON.parse(JSON.stringify(o));
+function put(o,silent){o.updatedAt=Date.now();if(!o.createdAt)o.createdAt=o.updatedAt;items.set(o.id,o);saveLocal();if(col){const c=clean(o);write(o.id,()=>col.doc(o.id).set(c))}if(!silent)render()}
+function remove(id){const o=items.get(id);items.delete(id);saveLocal();if(col)write(id,()=>col.doc(id).delete());render();return o}
+
+function setSync(s){
+  const el=$('#sync');const map={local:['ok','Saved on this iPhone'],connecting:['','Connecting…'],slow:['err','Offline — showing saved copy'],ok:['ok','Synced'],error:['err','Sync stopped']};
+  const [c,t]=map[s]||map.local;el.className='sync '+c;el.querySelector('span').textContent=t;
+}
+async function initSync(){
+  if(!window.claude||typeof window.claude.use!=='function'){setSync('local');return}
+  let db=null,user=null;
+  try{[db,user,dict,dl]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('dictation'),claude.use('downloads')])}catch(e){}
+  render();
+  if(!db||!user){setSync('local');return}
+  let id=null;try{id=await user.id()}catch(e){}
+  if(!id){setSync('local');return}
+  try{col=db.collection('data/users/'+id)}catch(e){setSync('local');return}
+  setSync('connecting');
+  const timer=setTimeout(()=>setSync('slow'),10000);
+  let first=true;
+  col.onSnapshot(snap=>{
+    const m=new Map();
+    snap.docs.forEach(d=>{const v=d.data();if(v)m.set(d.id,Object.assign({},v,{id:d.id}))});
+    if(snap.metadata.fromCache){if(m.size===0)return;items=m;saveLocal();render();return}
+    clearTimeout(timer);setSync('ok');
+    if(first){first=false;if(m.size===0&&items.size>0){[...items.values()].forEach(o=>{const c=clean(o);write(o.id,()=>col.doc(o.id).set(c))});render();return}}
+    items=m;saveLocal();render();
+  },e=>{clearTimeout(timer);setSync('error');col=null;toast('Sync stopped — changes are kept on this device.')});
+}
+
+/* ---------- ui state ---------- */
+const st={tab:'home',more:null,tStage:'OPEN',tHigh:false,tRegion:'',tQ:'',iStat:'ACTIVE',iQ:'',cQ:'',cDept:'',oStage:'ACTIVE',region:null,rTab:'tasks',rPlace:'',rep:'month',repMonth:today().slice(0,7),repYear:new Date().getFullYear(),repRegion:''};
+let toastTimer,undoFn=null;
+function toast(msg,undo){const t=$('#toast');t.querySelector('span').textContent=msg;const b=$('#toastBtn');b.hidden=!undo;undoFn=undo||null;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),undo?6000:3200)}
+$('#toastBtn').addEventListener('click',()=>{if(undoFn){undoFn();undoFn=null}$('#toast').classList.remove('on')});
+
+/* ---------- derived ---------- */
+const isOpenT=t=>t.stage!=='DONE';
+const overdue=t=>t.due&&t.due<today()&&isOpenT(t);
+const issueActive=i=>i.status!=='RESOLVED';
+const oppActive=o=>o.oppStage!=='WON'&&o.oppStage!=='LOST';
+function sortTasks(a,b){
+  const ad=a.stage==='DONE',bd=b.stage==='DONE';if(ad!==bd)return ad?1:-1;
+  if(ad)return (b.doneAt||0)-(a.doneAt||0);
+  const ah=a.priority==='HIGH',bh=b.priority==='HIGH';if(ah!==bh)return ah?-1:1;
+  if((a.due||'9')!==(b.due||'9'))return (a.due||'9')<(b.due||'9')?-1:1;
+  return (a.createdAt||0)-(b.createdAt||0);
+}
+const where=o=>{const p=o.place&&get(o.place);return [rname(o.region),p?p.name:''].filter(Boolean).join(' › ')};
+
+/* ---------- cards ---------- */
+function taskCard(t){
+  const c=t.contact&&get(t.contact);
+  const late=overdue(t);
+  return `<article class="card${t.priority==='HIGH'&&isOpenT(t)?' hi':''}${t.stage==='DONE'?' done':''}" data-act="edit" data-id="${t.id}">
+  <button class="check${t.stage==='DONE'?' on':''}" data-act="done" data-id="${t.id}" aria-label="Mark done">${t.stage==='DONE'?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg>':''}</button>
+  <div class="body"><div class="t">${t.priority==='HIGH'&&isOpenT(t)?'<span class="tag">HIGH</span>':''}${esc(t.title)}</div>
+  <div class="meta">${t.due?`<span class="${late?'late':''}">${late?'Overdue · ':''}${fmtD(t.due)}</span>`:''}${where(t)?`<span>${esc(where(t))}</span>`:''}${c?`<span>${esc(c.name)}</span>`:''}</div></div>
+  <button class="pill ${t.stage.replace(' ','')}" data-act="next" data-id="${t.id}" aria-label="Move to next stage">${t.stage}</button></article>`;
+}
+function issueCard(i){
+  const age=daysSince(i.createdAt);const res=i.status==='RESOLVED';
+  return `<article class="card${i.priority==='HIGH'&&!res?' hi':''}${res?' done':''}" data-act="edit" data-id="${i.id}">
+  <div class="body"><div class="t">${i.priority==='HIGH'&&!res?'<span class="tag">HIGH</span>':''}${esc(i.title)}</div>
+  <div class="meta"><span class="${!res&&age>=14?'late':''}">${res?'Resolved '+fmtTs(i.resolvedAt||i.updatedAt):age+' day'+(age===1?'':'s')+' open'}</span>${i.waitingOn&&!res?`<span>Waiting on: ${esc(i.waitingOn)}${i.owner?' ('+esc(i.owner)+')':''}</span>`:''}${where(i)?`<span>${esc(where(i))}</span>`:''}${(i.log||[]).length?`<span>${i.log.length} update${i.log.length>1?'s':''}</span>`:''}</div></div>
+  <span class="pill ${i.status}">${i.status}</span></article>`;
+}
+function oppCard(o){
+  return `<article class="card${o.priority==='HIGH'&&oppActive(o)?' hi':''}" data-act="edit" data-id="${o.id}">
+  <div class="body"><div class="t">${esc(o.title)}</div>
+  <div class="meta"><span class="money" style="color:var(--ink)">${money(o.amount)}</span>${o.due?`<span>${fmtD(o.due)}</span>`:''}${where(o)?`<span>${esc(where(o))}</span>`:''}</div>
+  ${o.description?`<div class="meta">${esc(o.description).slice(0,140)}</div>`:''}</div>
+  <span class="pill ${o.oppStage}">${o.oppStage}</span></article>`;
+}
+function contactCard(c){
+  const ph=(c.phone||'').replace(/[^\d+]/g,'');const wa=ph.replace(/^\+/,'').replace(/^0(5\d{8})$/,'966$1');
+  return `<article class="card contact" data-act="edit" data-id="${c.id}">
+  <div class="body"><div class="t">${esc(c.name)}</div>
+  <div class="meta">${c.department?`<span><b style="color:var(--ink)">${esc(c.department)}</b></span>`:''}${c.responsibility?`<span>${esc(c.responsibility)}</span>`:''}${c.company?`<span>${esc(c.company)}</span>`:''}${c.region?`<span>${rname(c.region)}</span>`:''}</div>
+  ${ph||c.email?`<div class="meta">${ph?`<a href="tel:${esc(ph)}" data-stop>${esc(c.phone)}</a><a href="https://wa.me/${esc(wa)}" target="_blank" rel="noopener" data-stop>WhatsApp</a>`:''}${c.email?`<a href="mailto:${esc(c.email)}" data-stop>${esc(c.email)}</a>`:''}</div>`:''}</div></article>`;
+}
+const listOr=(arr,fn,msg)=>arr.length?`<div class="list">${arr.map(fn).join('')}</div>`:`<div class="empty">${msg}</div>`;
+
+/* ---------- views ---------- */
+const V={};
+V.home=()=>{
+  const T=all('task'),I=all('issue');const t0=today();
+  const open=T.filter(isOpenT),high=open.filter(t=>t.priority==='HIGH'),late=open.filter(overdue);
+  const actI=I.filter(issueActive);
+  const attn=open.filter(t=>t.priority==='HIGH'||overdue(t)).sort(sortTasks);
+  const todayL=open.filter(t=>!(t.priority==='HIGH'||overdue(t))&&(t.due===t0||t.stage==='DOING')).sort(sortTasks);
+  const agingI=actI.filter(i=>daysSince(i.createdAt)>=7).sort((a,b)=>a.createdAt-b.createdAt);
+  const d=new Date();const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  let banner='';
+  if(d.getDate()>=last-2)banner=`<button class="banner" data-act="report" data-m="${t0.slice(0,7)}"><span><b>Month closes in ${last-d.getDate()===0?'less than a day':(last-d.getDate())+' day'+(last-d.getDate()>1?'s':'')}.</b> Review your ${MON[d.getMonth()]} report.</span><span>Open</span></button>`;
+  else if(d.getDate()<=3){const p=new Date(d.getFullYear(),d.getMonth()-1,1);banner=`<button class="banner" data-act="report" data-m="${p.getFullYear()}-${pad(p.getMonth()+1)}"><span><b>Your ${MON[p.getMonth()]} report is ready.</b> Completed work, open priorities, regions.</span><span>Open</span></button>`}
+  let lb=0;try{lb=+localStorage.getItem('fielddesk.lastBackup')||0}catch(e){}
+  if(!banner&&items.size>=10&&Date.now()-lb>30*864e5)banner=`<button class="banner" data-act="more" data-v="data"><span><b>Back up your data.</b> ${lb?'Last backup '+fmtTs(lb):'No backup yet'} — takes 10 seconds.</span><span>Open</span></button>`;
+  const regionRows=REGIONS.map(r=>{const n=open.filter(t=>t.region===r.id).length;return {r,n}});const mx=Math.max(1,...regionRows.map(x=>x.n));
+  return `<div class="sub">${DOW[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}</div>
+  <h1>${high.length?`${high.length} high-priority task${high.length>1?'s':''} open`:open.length?`${open.length} open task${open.length>1?'s':''}, none urgent`:'All clear'}</h1>
+  <div class="stats">
+   <button class="stat${high.length?' hot':''}" data-act="go" data-tab="tasks" data-high="1"><b>${high.length}</b><span>High priority</span></button>
+   <button class="stat" data-act="go" data-tab="tasks"><b>${late.length}</b><span>Overdue</span></button>
+   <button class="stat" data-act="go" data-tab="tasks"><b>${open.length}</b><span>Open tasks</span></button>
+   <button class="stat" data-act="go" data-tab="issues"><b>${actI.length}</b><span>Open issues</span></button>
+  </div>${banner}
+  <div class="sectionhead"><h2>Needs attention</h2><button class="link" data-act="new" data-kind="task">+ Task</button></div>
+  ${listOr(attn,taskCard,items.size?'Nothing high-priority or overdue.':'Tap the red microphone and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}
+  ${todayL.length?`<h2>Today &amp; in progress</h2>${listOr(todayL,taskCard)}`:''}
+  ${agingI.length?`<h2>Issues waiting 7+ days</h2>${listOr(agingI,issueCard)}`:''}
+  <h2>Open tasks by region</h2>
+  <div class="list">${regionRows.map(x=>`<button class="region" data-act="region" data-id="${x.r.id}" style="padding:12px 14px"><div class="row" style="justify-content:space-between"><b>${x.r.name}</b><span class="money">${x.n}</span></div><div class="bar"><i style="width:${x.n/mx*100}%;background:${RCOL[x.r.id]}"></i></div></button>`).join('')}</div>`;
+};
+
+function taskList(){
+  let T=all('task');
+  if(st.tStage==='OPEN')T=T.filter(isOpenT);else if(st.tStage!=='ALL')T=T.filter(t=>t.stage===st.tStage);
+  if(st.tHigh)T=T.filter(t=>t.priority==='HIGH');
+  if(st.tRegion)T=T.filter(t=>t.region===st.tRegion);
+  if(st.tQ){const q=st.tQ.toLowerCase();T=T.filter(t=>(t.title+' '+(t.notes||'')+' '+where(t)).toLowerCase().includes(q))}
+  return listOr(T.sort(sortTasks),taskCard,'No tasks here.');
+}
+V.tasks=()=>{
+  const T=all('task');const cnt=s=>s==='OPEN'?T.filter(isOpenT).length:s==='ALL'?T.length:T.filter(t=>t.stage===s).length;
+  return `<div class="sectionhead"><h1>Tasks</h1><button class="btn pri small" data-act="new" data-kind="task">+ New</button></div>
+  <div class="chips" style="margin-top:12px">${['OPEN',...STAGES,'ALL'].map(s=>`<button class="chip${st.tStage===s?' on':''}" data-act="set" data-k="tStage" data-v="${s}">${s==='OPEN'?'Open':s==='ALL'?'All':s} · ${cnt(s)}</button>`).join('')}</div>
+  <div class="chips"><button class="chip red${st.tHigh?' on':''}" data-act="toggle" data-k="tHigh">HIGH only</button>${[['','All regions'],...REGIONS.map(r=>[r.id,r.name])].map(([id,n])=>`<button class="chip${st.tRegion===id?' on':''}" data-act="set" data-k="tRegion" data-v="${id}">${n}</button>`).join('')}</div>
+  <input class="search" id="q-tasks" data-q="tQ" placeholder="Search tasks" value="${esc(st.tQ)}">
+  <div id="list">${taskList()}</div>`;
+};
+
+function issueList(){
+  let I=all('issue');
+  if(st.iStat==='ACTIVE')I=I.filter(issueActive);else if(st.iStat!=='ALL')I=I.filter(i=>i.status===st.iStat);
+  if(st.iQ){const q=st.iQ.toLowerCase();I=I.filter(i=>(i.title+' '+(i.notes||'')+' '+(i.owner||'')+' '+where(i)).toLowerCase().includes(q))}
+  I.sort((a,b)=>{const ar=a.status==='RESOLVED',br=b.status==='RESOLVED';if(ar!==br)return ar?1:-1;if((a.priority==='HIGH')!==(b.priority==='HIGH'))return a.priority==='HIGH'?-1:1;return a.createdAt-b.createdAt});
+  return listOr(I,issueCard,'No issues here.');
+}
+V.issues=()=>{
+  const I=all('issue');const act=I.filter(issueActive);
+  const avg=act.length?Math.round(act.reduce((s,i)=>s+daysSince(i.createdAt),0)/act.length):0;
+  return `<div class="sectionhead"><h1>Issues</h1><button class="btn pri small" data-act="new" data-kind="issue">+ New</button></div>
+  <p class="sub">${act.length} waiting for a solution${act.length?` · average age ${avg} day${avg===1?'':'s'}`:''}</p>
+  <div class="chips">${[['ACTIVE','Not resolved'],['OPEN','Open'],['WAITING','Waiting'],['RESOLVED','Resolved'],['ALL','All']].map(([v,n])=>`<button class="chip${st.iStat===v?' on':''}" data-act="set" data-k="iStat" data-v="${v}">${n}</button>`).join('')}</div>
+  <input class="search" id="q-issues" data-q="iQ" placeholder="Search issues" value="${esc(st.iQ)}">
+  <div id="list">${issueList()}</div>`;
+};
+
+function contactList(){
+  let C=all('contact');
+  if(st.cDept)C=C.filter(c=>(c.department||'')===st.cDept);
+  if(st.cQ){const q=st.cQ.toLowerCase();C=C.filter(c=>[c.name,c.department,c.responsibility,c.company,c.phone,c.email,rname(c.region)].join(' ').toLowerCase().includes(q))}
+  C.sort((a,b)=>a.name.localeCompare(b.name));
+  return listOr(C,contactCard,all('contact').length?'No match. Try another name or department.':'No contacts yet. Say: <b>"Contact Ahmed Ali, Procurement, purchase orders"</b>');
+}
+V.contacts=()=>{
+  const depts=[...new Set(all('contact').map(c=>c.department).filter(Boolean))].sort();
+  return `<div class="sectionhead"><h1>Contacts</h1><button class="btn pri small" data-act="new" data-kind="contact">+ New</button></div>
+  <input class="search" id="q-contacts" data-q="cQ" placeholder="Search name, department, responsibility" value="${esc(st.cQ)}" style="margin-top:14px">
+  ${depts.length?`<div class="chips"><button class="chip${!st.cDept?' on':''}" data-act="set" data-k="cDept" data-v="">All departments</button>${depts.map(d=>`<button class="chip${st.cDept===d?' on':''}" data-act="set" data-k="cDept" data-v="${esc(d)}">${esc(d)}</button>`).join('')}</div>`:''}
+  <div id="list">${contactList()}</div>`;
+};
+
+function regionStats(id){
+  const m0=new Date();const ms=new Date(m0.getFullYear(),m0.getMonth(),1).getTime();
+  const T=all('task').filter(t=>t.region===id),I=all('issue').filter(i=>i.region===id),O=all('opp').filter(o=>o.region===id);
+  return {open:T.filter(isOpenT).length,high:T.filter(t=>isOpenT(t)&&t.priority==='HIGH').length,doneM:T.filter(t=>t.doneAt>=ms).length,issues:I.filter(issueActive).length,pipe:O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0),places:all('place').filter(p=>p.region===id).length};
+}
+V.regions=()=>{
+  if(st.region)return regionDetail();
+  return `<h1>Regions</h1><p class="sub">Tap a region to see its places, tasks, issues and opportunities.</p>
+  <div class="regions">${REGIONS.map(r=>{const s=regionStats(r.id);return `<button class="region" data-act="region" data-id="${r.id}" style="border-top:5px solid ${RCOL[r.id]}">
+   <div class="row" style="justify-content:space-between"><h3>${r.name}</h3><span class="sub">${s.places} place${s.places===1?'':'s'}</span></div>
+   <div class="rgrid"><div><b>${s.open}</b>Open</div><div><b style="color:${s.high?'var(--acc)':'inherit'}">${s.high}</b>High</div><div><b>${s.doneM}</b>Done this month</div><div><b>${s.issues}</b>Issues</div></div>
+   ${s.pipe?`<div class="sub" style="margin-top:8px">Open pipeline <span class="money" style="color:var(--ink)">${money(s.pipe)}</span></div>`:''}</button>`}).join('')}</div>`;
+};
+function regionDetail(){
+  const id=st.region,r=REGIONS.find(x=>x.id===id),s=regionStats(id);
+  const places=all('place').filter(p=>p.region===id).sort((a,b)=>a.name.localeCompare(b.name));
+  const pf=o=>!st.rPlace||o.place===st.rPlace;
+  let body='';
+  if(st.rTab==='tasks')body=listOr(all('task').filter(t=>t.region===id&&pf(t)).sort(sortTasks),taskCard,'No tasks in this region yet.');
+  if(st.rTab==='issues')body=listOr(all('issue').filter(i=>i.region===id&&pf(i)).sort((a,b)=>(a.status==='RESOLVED')-(b.status==='RESOLVED')||a.createdAt-b.createdAt),issueCard,'No issues in this region.');
+  if(st.rTab==='opps')body=listOr(all('opp').filter(o=>o.region===id&&pf(o)).sort((a,b)=>(b.amount||0)-(a.amount||0)),oppCard,'No opportunities in this region.');
+  if(st.rTab==='contacts')body=listOr(all('contact').filter(c=>c.region===id).sort((a,b)=>a.name.localeCompare(b.name)),contactCard,'No contacts tagged with this region.');
+  if(st.rTab==='places')body=places.length?`<div class="list">${places.map(p=>{const n=all('task').filter(t=>t.place===p.id&&isOpenT(t)).length,ni=all('issue').filter(i=>i.place===p.id&&issueActive(i)).length;return `<article class="card" data-act="edit" data-id="${p.id}"><div class="body"><div class="t">${esc(p.name)}</div><div class="meta"><span>${esc(p.ptype||'')}</span><span>${n} open task${n===1?'':'s'}</span><span>${ni} issue${ni===1?'':'s'}</span></div></div></article>`}).join('')}</div>`:'<div class="empty">Add the governorates, cities, sites or customers you cover in this region.</div>';
+  return `<button class="link" data-act="region" data-id="">‹ All regions</button>
+  <div class="sectionhead"><h1 style="border-bottom:5px solid ${RCOL[id]};padding-bottom:4px">${r.name}</h1><button class="btn ghost small" data-act="new" data-kind="place">+ Place</button></div>
+  <div class="stats"><div class="stat${s.high?' hot':''}"><b>${s.high}</b><span>High priority</span></div><div class="stat"><b>${s.open}</b><span>Open tasks</span></div><div class="stat"><b>${s.issues}</b><span>Open issues</span></div><div class="stat"><b>${s.doneM}</b><span>Done this month</span></div></div>
+  ${places.length?`<div class="chips"><button class="chip${!st.rPlace?' on':''}" data-act="set" data-k="rPlace" data-v="">Whole region</button>${places.map(p=>`<button class="chip${st.rPlace===p.id?' on':''}" data-act="set" data-k="rPlace" data-v="${p.id}">${esc(p.name)}</button>`).join('')}</div>`:''}
+  <div class="kindsw" style="grid-template-columns:repeat(5,minmax(0,1fr))">${[['tasks','Tasks'],['issues','Issues'],['opps','Deals'],['contacts','People'],['places','Places']].map(([k,n])=>`<button class="${st.rTab===k?'on':''}" data-act="set" data-k="rTab" data-v="${k}">${n}</button>`).join('')}</div>
+  ${body}`;
+}
+
+V.more=()=>{
+  if(st.more==='opps')return oppsView();
+  if(st.more==='reports')return reportsView();
+  if(st.more==='help')return helpView();
+  if(st.more==='data')return dataView();
+  const O=all('opp');const pipe=O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0);
+  return `<h1>More</h1><div class="morelist" style="margin-top:16px">
+  <button data-act="more" data-v="reports"><span>Reports<small>Monthly report and yearly region comparison</small></span>›</button>
+  <button data-act="more" data-v="opps"><span>Opportunities &amp; quotations<small>${O.filter(oppActive).length} open · ${money(pipe)}</small></span>›</button>
+  <button data-act="more" data-v="help"><span>Voice commands guide<small>How to dictate tasks, issues, contacts, deals</small></span>›</button>
+  <button data-act="more" data-v="data"><span>Backup &amp; data<small>${items.size} items stored</small></span>›</button></div>`;
+};
+const backBtn='<button class="link" data-act="more" data-v="">‹ More</button>';
+function oppsView(){
+  let O=all('opp');const act=O.filter(oppActive);
+  const y=new Date().getFullYear();const won=O.filter(o=>o.oppStage==='WON'&&new Date(o.closedAt||o.updatedAt).getFullYear()===y);
+  if(st.oStage==='ACTIVE')O=act;else if(st.oStage!=='ALL')O=O.filter(o=>o.oppStage===st.oStage);
+  O.sort((a,b)=>(b.amount||0)-(a.amount||0));
+  return `${backBtn}<div class="sectionhead"><h1>Opportunities</h1><button class="btn pri small" data-act="new" data-kind="opp">+ New</button></div>
+  <div class="kpis" style="margin:14px 0"><div class="kpi"><b>${act.length}</b><span>Open</span></div><div class="kpi"><b style="font-size:22px">${money(act.reduce((s,o)=>s+(+o.amount||0),0))}</b><span>Open pipeline</span></div><div class="kpi"><b style="font-size:22px">${money(won.reduce((s,o)=>s+(+o.amount||0),0))}</b><span>Won in ${y}</span></div></div>
+  <div class="chips">${[['ACTIVE','Open'],...OSTAGES.map(s=>[s,s]),['ALL','All']].map(([v,n])=>`<button class="chip${st.oStage===v?' on':''}" data-act="set" data-k="oStage" data-v="${v}">${n}</button>`).join('')}</div>
+  ${listOr(O,oppCard,'No opportunities here. Say: <b>"Opportunity AHU retrofit for city hospital 250k SAR Najran"</b>')}`;
+}
+
+/* ---------- reports ---------- */
+const inR=(ts,a,b)=>ts&&ts>=a&&ts<b;
+function monthReport(){
+  const [y,m]=st.repMonth.split('-').map(Number);const a=new Date(y,m-1,1).getTime(),b=new Date(y,m,1).getTime();
+  const T=all('task'),I=all('issue'),O=all('opp');
+  const done=T.filter(t=>t.stage==='DONE'&&inR(t.doneAt,a,b)).sort((p,q)=>p.doneAt-q.doneAt);
+  const created=T.filter(t=>inR(t.createdAt,a,b));
+  const hiOpen=T.filter(t=>isOpenT(t)&&t.priority==='HIGH').sort(sortTasks);
+  const late=T.filter(overdue);
+  const iOpened=I.filter(i=>inR(i.createdAt,a,b)),iRes=I.filter(i=>i.status==='RESOLVED'&&inR(i.resolvedAt,a,b));
+  const avgRes=iRes.length?Math.round(iRes.reduce((s,i)=>s+(i.resolvedAt-i.createdAt)/864e5,0)/iRes.length):null;
+  const iStill=I.filter(issueActive).sort((p,q)=>p.createdAt-q.createdAt);
+  const oNew=O.filter(o=>inR(o.createdAt,a,b)),oWon=O.filter(o=>o.oppStage==='WON'&&inR(o.closedAt,a,b));
+  const stageMix=STAGES.map(s=>[s,T.filter(t=>t.stage===s).length]);const tot=Math.max(1,T.length);
+  const rows=[...REGIONS.map(r=>[r.id,r.name]),['','No region']].map(([id,n])=>{const f=o=>(o.region||'')===id;return {n,done:done.filter(f).length,created:created.filter(f).length,open:T.filter(t=>f(t)&&isOpenT(t)).length,iRes:iRes.filter(f).length,iOpen:iStill.filter(f).length,won:oWon.filter(f).reduce((s,o)=>s+(+o.amount||0),0)}}).filter(r=>r.n!=='No region'||r.done+r.created+r.open+r.iRes+r.iOpen+r.won>0);
+  const rate=created.length?Math.round(created.filter(t=>t.stage==='DONE').length/created.length*100):null;
+  return `<h1 style="margin-top:14px">${MON[m-1]} ${y}: ${done.length} task${done.length===1?'':'s'} completed</h1>
+  <p class="sub">${created.length} created this month${rate!==null?` · ${rate}% of them already done`:''}</p>
+  <div class="kpis" style="margin:14px 0"><div class="kpi"><b>${done.length}</b><span>Completed</span></div><div class="kpi" style="${hiOpen.length?'background:var(--acc);color:#fff':''}"><b>${hiOpen.length}</b><span style="${hiOpen.length?'color:#fff':''}">High priority open</span></div><div class="kpi"><b>${late.length}</b><span>Overdue now</span></div>
+  <div class="kpi"><b>${iRes.length}</b><span>Issues resolved${avgRes!==null?` · avg ${avgRes}d`:''}</span></div><div class="kpi"><b>${iOpened.length}</b><span>Issues opened</span></div><div class="kpi"><b style="font-size:22px">${money(oWon.reduce((s,o)=>s+(+o.amount||0),0))}</b><span>Won · ${oNew.length} new deal${oNew.length===1?'':'s'}</span></div></div>
+  ${hiOpen.length?`<h2 style="color:var(--acc)">High priority — still open</h2>${listOr(hiOpen,taskCard)}`:''}
+  <h2>Current stage mix</h2>
+  <div class="bar" style="height:14px">${stageMix.map(([s,n],k)=>`<i style="width:${n/tot*100}%;background:${['var(--mute)','#1550a8','var(--warn)','var(--ok)'][k]}"></i>`).join('')}</div>
+  <div class="legend" style="flex-wrap:wrap">${stageMix.map(([s,n],k)=>`<span><i style="background:${['var(--mute)','#1550a8','var(--warn)','var(--ok)'][k]}"></i>${s} ${n}</span>`).join('')}</div>
+  <h2>By region</h2>
+  <div class="scroll"><table><thead><tr><th>Region</th><th class="n">Done</th><th class="n">New</th><th class="n">Open</th><th class="n">Issues fixed</th><th class="n">Issues open</th><th class="n">Won SAR</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td><b>${r.n}</b></td><td class="n">${r.done}</td><td class="n">${r.created}</td><td class="n">${r.open}</td><td class="n">${r.iRes}</td><td class="n">${r.iOpen}</td><td class="n">${(r.won).toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table></div>
+  <h2>Completed in ${MON[m-1]}</h2>
+  ${done.length?`<div class="scroll"><table><thead><tr><th>Task</th><th>Where</th><th class="n">Done</th></tr></thead><tbody>${done.map(t=>`<tr><td>${t.priority==='HIGH'?'<span class="tag">HIGH</span>':''}${esc(t.title)}</td><td>${esc(where(t))}</td><td class="n">${new Date(t.doneAt).getDate()} ${MON[m-1]}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No tasks completed in this month.</div>'}
+  ${iStill.length?`<h2>Issues still waiting</h2><div class="scroll"><table><thead><tr><th>Issue</th><th>Waiting on</th><th class="n">Age</th></tr></thead><tbody>${iStill.map(i=>`<tr><td>${esc(i.title)}</td><td>${esc(i.waitingOn||'')}</td><td class="n">${daysSince(i.createdAt)}d</td></tr>`).join('')}</tbody></table></div>`:''}`;
+}
+function yearStats(y,rid){
+  const a=new Date(y,0,1).getTime(),b=new Date(y+1,0,1).getTime();const f=o=>!rid||o.region===rid;
+  const T=all('task').filter(f),I=all('issue').filter(f),O=all('opp').filter(f);
+  const done=T.filter(t=>t.stage==='DONE'&&inR(t.doneAt,a,b));
+  const months=Array(12).fill(0);done.forEach(t=>months[new Date(t.doneAt).getMonth()]++);
+  const won=O.filter(o=>o.oppStage==='WON'&&inR(o.closedAt,a,b));
+  return {done:done.length,created:T.filter(t=>inR(t.createdAt,a,b)).length,iRes:I.filter(i=>i.status==='RESOLVED'&&inR(i.resolvedAt,a,b)).length,iOpen:I.filter(i=>inR(i.createdAt,a,b)).length,won:won.reduce((s,o)=>s+(+o.amount||0),0),wonN:won.length,opps:O.filter(o=>inR(o.createdAt,a,b)).length,months};
+}
+const delta=(n,p)=>{if(!p)return n?'<em class="up">new</em>':'';const d=Math.round((n-p)/p*100);return `<em class="${d>=0?'up':'down'}">${d>=0?'+':''}${d}% vs last year</em>`};
+function yearReport(){
+  const y=+st.repYear,rid=st.repRegion;const s=yearStats(y,rid),p=yearStats(y-1,rid);
+  const mx=Math.max(1,...s.months,...p.months);
+  return `<h1 style="margin-top:14px">${rid?rname(rid):'All regions'} in ${y}: ${s.done} tasks completed</h1>
+  <div class="chips" style="margin-top:10px">${[['','All regions'],...REGIONS.map(r=>[r.id,r.name])].map(([id,n])=>`<button class="chip${st.repRegion===id?' on':''}" data-act="set" data-k="repRegion" data-v="${id}">${n}</button>`).join('')}</div>
+  <div class="kpis" style="margin:8px 0 14px"><div class="kpi"><b>${s.done}</b><span>Tasks completed</span><br>${delta(s.done,p.done)}</div><div class="kpi"><b>${s.iRes}</b><span>Issues resolved</span><br>${delta(s.iRes,p.iRes)}</div><div class="kpi"><b style="font-size:22px">${money(s.won)}</b><span>Won (${s.wonN})</span><br>${delta(s.won,p.won)}</div></div>
+  <h2>Completed tasks per month</h2>
+  <div class="months">${s.months.map((n,k)=>`<div class="m" title="${MON[k]}: ${n} (${y-1}: ${p.months[k]})"><i class="prev" style="height:${p.months[k]/mx*100}%"></i><i style="height:${n/mx*100}%"></i></div>`).join('')}</div>
+  <div class="mlab">${MON.map(m=>`<span>${m[0]}</span>`).join('')}</div>
+  <div class="legend"><span><i style="background:var(--ink)"></i>${y}</span><span><i style="background:var(--chip)"></i>${y-1}</span></div>
+  <h2>Regions compared</h2>
+  <div class="scroll"><table><thead><tr><th>Region</th><th class="n">Done ${y}</th><th class="n">Done ${y-1}</th><th class="n">Issues fixed</th><th class="n">Won SAR</th></tr></thead>
+  <tbody>${REGIONS.map(r=>{const a=yearStats(y,r.id),b=yearStats(y-1,r.id);return `<tr><td><b>${r.name}</b></td><td class="n">${a.done}</td><td class="n">${b.done}</td><td class="n">${a.iRes}</td><td class="n">${a.won.toLocaleString('en-US')}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+function reportsView(){
+  const y0=new Date().getFullYear();const years=[];for(let y=y0;y>=y0-4;y--)years.push(String(y));
+  return `${backBtn}<h1>Reports</h1>
+  <div class="kindsw" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button class="${st.rep==='month'?'on':''}" data-act="set" data-k="rep" data-v="month">Monthly</button><button class="${st.rep==='year'?'on':''}" data-act="set" data-k="rep" data-v="year">Yearly</button></div>
+  <div class="f">${st.rep==='month'?`<input type="month" id="repMonth" value="${st.repMonth}">`:`<select id="repYear">${opt(years,String(st.repYear))}</select>`}</div>
+  ${st.rep==='month'?monthReport():yearReport()}`;
+}
+
+function helpView(){
+  return `${backBtn}<h1>Voice commands</h1>
+  <p>Tap the red microphone. On iPhone, tap the <b>microphone key on the keyboard</b> and speak, then press <b>Read</b>. You always see the result before saving, and can fix any field.</p>
+  <h2>Start with the type</h2>
+  <div class="ex"><code><b>Task</b> follow up chiller quotation with Ahmed tomorrow high priority Jazan</code>
+  <code><b>Issue</b> compressor parts delayed waiting for parts Najran</code>
+  <code><b>Opportunity</b> AHU retrofit for city hospital 250k SAR Asir</code>
+  <code><b>Contact</b> Ahmed Ali, Procurement, purchase orders</code>
+  <p class="sub">No type word = task.</p></div>
+  <h2>Words it understands</h2>
+  <table><tbody>
+  <tr><td><b>Priority</b></td><td>high priority, urgent, asap · low priority</td></tr>
+  <tr><td><b>Date</b></td><td>today, tomorrow, day after tomorrow, Sunday…Saturday, next week, in 3 days, end of month, 25/12</td></tr>
+  <tr><td><b>Stage</b></td><td>in progress / doing, pending / on hold, done</td></tr>
+  <tr><td><b>Region</b></td><td>Asir (Aseer, Abha), Jazan (Jizan), Najran — plus any place you added</td></tr>
+  <tr><td><b>Contact</b></td><td>any saved contact's name, e.g. "with Ahmed"</td></tr>
+  <tr><td><b>Issue</b></td><td>waiting for customer / parts / supplier / procurement</td></tr>
+  <tr><td><b>Amount</b></td><td>250k SAR, 40,000 riyals, worth 90000</td></tr>
+  <tr><td><b>Contact</b></td><td>Name, Department, Responsibility, Company — separated by "comma"</td></tr>
+  </tbody></table>
+  <h2>Speaking Arabic</h2>
+  <p>Without AI there is no translation, so the title is saved as you said it. These Arabic words are still understood:</p>
+  <div class="ex ar"><code>مهمة · مشكلة · فرصة · جهة اتصال · أولوية عالية · عاجل · اليوم · بكرة · بعد بكرة · يوم الأحد · الأسبوع الجاي · آخر الشهر · جازان · عسير · أبها · نجران · بانتظار العميل · بانتظار قطع الغيار</code></div>
+  <p class="sub">For English entries, set the iPhone keyboard to English before tapping the microphone.</p>`;
+}
+function dataView(){
+  const c=k=>all(k).length;
+  return `${backBtn}<h1>Backup &amp; data</h1>
+  <p>${c('task')} tasks · ${c('issue')} issues · ${c('opp')} opportunities · ${c('contact')} contacts · ${c('place')} places</p>
+  <p class="sub">Your data lives only on this iPhone — nothing is sent anywhere. Export a backup now and then and save it to iCloud Drive (Files), so you can restore it on a new phone.</p>
+  <p class="sub">Last backup: ${(()=>{const t=+localStorage.getItem('fielddesk.lastBackup')||0;return t?fmtTs(t):'never'})()}</p>
+  <div class="actions"><button class="btn dark" data-act="export">Export backup</button><button class="btn ghost" data-act="import">Import backup</button></div>
+  <p class="sub" style="margin-top:20px">Import adds the items from a backup file and replaces items with the same ID. Nothing else is deleted.</p>`;
+}
+
+/* ---------- render ---------- */
+let alerted=false;
+function render(){
+  const ae=document.activeElement;const keep=ae&&ae.id&&$('#main').contains(ae)?{id:ae.id,s:ae.selectionStart,e:ae.selectionEnd}:null;
+  $('#main').innerHTML=V[st.tab]();
+  if(keep){const el=document.getElementById(keep.id);if(el){el.focus();try{el.setSelectionRange(keep.s,keep.e)}catch(e){}}}
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===st.tab));
+  const hi=all('task').filter(t=>isOpenT(t)&&(t.priority==='HIGH'||overdue(t))).length,iss=all('issue').filter(issueActive).length;
+  const bt=$('#b-tasks'),bi=$('#b-issues');bt.hidden=!hi;bt.textContent=hi;bi.hidden=!iss;bi.textContent=iss;
+  if(!alerted&&items.size){alerted=true;const n=all('task').filter(t=>isOpenT(t)&&t.priority==='HIGH'&&t.due&&t.due<=today()).length;if(n)setTimeout(()=>toast(`${n} high-priority task${n>1?'s are':' is'} due today or overdue`),600)}
+}
+
+/* ---------- sheet + forms ---------- */
+function openSheet(html){const s=$('#sheet');s.innerHTML='<div class="grab"></div>'+html;$('#veil').classList.add('on');s.classList.add('on');s.scrollTop=0}
+function closeSheet(){$('#sheet').classList.remove('on');$('#veil').classList.remove('on');stopDict();setTimeout(()=>{if(!$('#sheet').classList.contains('on'))$('#sheet').innerHTML=''},260)}
+function placeOpts(region,v){return opt(all('place').filter(p=>!region||p.region===region).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>[p.id,p.name]),v,'—')}
+function fields(kind,o){
+  return SPEC[kind].map(([k,label,type,arr])=>{
+    const v=o[k]??'';let inp;
+    if(type==='sel')inp=`<select name="${k}">${opt(arr,v||arr[0])}</select>`;
+    else if(type==='region')inp=`<select name="region">${opt(REGIONS.map(r=>[r.id,r.name]),v,'—')}</select>`;
+    else if(type==='place')inp=`<select name="place">${placeOpts(o.region,v)}</select>`;
+    else if(type==='contact')inp=`<select name="contact">${opt(all('contact').sort((a,b)=>a.name.localeCompare(b.name)).map(c=>[c.id,c.name+(c.department?' — '+c.department:'')]),v,'—')}</select>`;
+    else if(type==='area')inp=`<textarea name="${k}">${esc(v)}</textarea>`;
+    else inp=`<input name="${k}" type="${type==='num'?'number':type==='date'?'date':type==='tel'?'tel':type==='email'?'email':'text'}" ${type==='num'?'inputmode="decimal"':''} value="${esc(v)}" ${k==='title'||k==='name'?'required':''}>`;
+    return `<label>${label}${inp}</label>`;
+  }).join('');
+}
+function readForm(form,kind,base){
+  const o=Object.assign({},base,{kind});
+  SPEC[kind].forEach(([k,,type])=>{const el=form.elements[k];if(!el)return;let v=el.value.trim();if(type==='num')v=v===''?0:Number(v);if(v===''){delete o[k]}else o[k]=v});
+  return o;
+}
+function applyTransitions(o,prev){
+  const now=Date.now();
+  if(o.kind==='task'){if(o.stage==='DONE'&&(!prev||prev.stage!=='DONE'))o.doneAt=now;if(o.stage!=='DONE')delete o.doneAt}
+  if(o.kind==='issue'){if(o.status==='RESOLVED'&&(!prev||prev.status!=='RESOLVED'))o.resolvedAt=now;if(o.status!=='RESOLVED')delete o.resolvedAt}
+  if(o.kind==='opp'){const c=o.oppStage==='WON'||o.oppStage==='LOST';if(c&&(!prev||prev.oppStage!==o.oppStage))o.closedAt=now;if(!c)delete o.closedAt}
+  return o;
+}
+function gcal(t){const d=t.due.replace(/-/g,''),e=addDays(t.due,1).replace(/-/g,'');return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent((t.priority==='HIGH'?'[HIGH] ':'')+t.title)}&dates=${d}/${e}&details=${encodeURIComponent([where(t),t.notes].filter(Boolean).join('\n'))}`}
+function editSheet(kind,o){
+  const isNew=!o.id;
+  const extra=kind==='issue'&&!isNew?`<h3 style="margin-top:8px">Updates</h3><div class="log">${(o.log||[]).slice().reverse().map(l=>`<div>${esc(l.text)}<small>${fmtTs(l.t)}</small></div>`).join('')||'<div class="sub">No updates yet.</div>'}</div><label>Add an update<input name="logText" placeholder="e.g. Customer approved PO, parts ETA 2 weeks"></label>`:'';
+  openSheet(`<div class="sheethead"><h2 style="margin:0">${isNew?'New ':''}${KNAME[kind]}</h2><button class="btn small ghost" data-act="close">Close</button></div>
+  <form class="f" id="ef" data-kind="${kind}" data-id="${o.id||''}">${fields(kind,o)}${extra}
+  ${kind==='task'&&o.due&&!isNew?`<a class="link" href="${gcal(o)}" target="_blank" rel="noopener">Add to Google Calendar ›</a>`:''}
+  ${!isNew?`<p class="sub" style="margin:0">Created ${fmtTs(o.createdAt)}${o.doneAt?' · done '+fmtTs(o.doneAt):''}</p>`:''}
+  <div class="actions"><button class="btn pri" type="submit">Save</button>${!isNew?`<button class="btn danger" type="button" data-act="del" data-id="${o.id}">Delete</button>`:''}</div></form>`);
+}
+document.addEventListener('submit',e=>{
+  if(e.target.id!=='ef')return;e.preventDefault();
+  const f=e.target,kind=f.dataset.kind,id=f.dataset.id,prev=id?get(id):null;
+  const o=applyTransitions(readForm(f,kind,prev||{id:uid(kind)}),prev);
+  if(f.elements.logText&&f.elements.logText.value.trim()){o.log=(o.log||[]).concat({t:Date.now(),text:f.elements.logText.value.trim()})}
+  if(!(o.title||o.name)){toast('Please enter a '+(kind==='contact'||kind==='place'?'name':'title'));return}
+  put(o);closeSheet();toast(`${KNAME[kind]} saved`);
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.name==='region'&&t.form){const p=t.form.elements.place;if(p)p.innerHTML=placeOpts(t.value,'')}
+  if(t.id==='repMonth'&&t.value){st.repMonth=t.value;render()}
+  if(t.id==='repYear'){st.repYear=+t.value;render()}
+});
+
+/* ---------- command parser ---------- */
+const B='(^|[\\s,،.;:!?])',E='(?=$|[\\s,،.;:!?])';
+const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+const rx=(words,pre='')=>new RegExp(B+pre+'(?:'+words.map(reEsc).join('|')+')'+E,'i');
+const KINDS=[['issue',['new issue','log issue','issue','problem','مشكلة','مشكله']],['opp',['new opportunity','opportunity','opp','new deal','deal','quotation','quote','فرصة','فرصه','عرض سعر']],['contact',['add contact','new contact','contact','جهة اتصال','جهه اتصال']],['task',['new task','add task','task','to do','todo','remind me to','reminder','مهمة','مهمه','ذكرني']]];
+const RALIAS={asir:['asir','aseer','assir','abha','عسير','أبها','ابها'],jazan:['jazan','jizan','gizan','جازان','جيزان'],najran:['najran','نجران']};
+const DEN=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+const DAR=[['الأحد','الاحد'],['الاثنين','الإثنين','الأثنين'],['الثلاثاء','الثلاثا'],['الأربعاء','الاربعاء'],['الخميس'],['الجمعة','الجمعه'],['السبت']];
+const NUMW=/(\d[\d,]*(?:\.\d+)?)\s*(k|m|thousand|million|ألف|الف|مليون)?/;
+const toNum=(n,mul)=>{let v=parseFloat(String(n).replace(/,/g,''));const u=(mul||'').toLowerCase();if(u==='k'||u==='thousand'||u==='ألف'||u==='الف')v*=1e3;if(u==='m'||u==='million'||u==='مليون')v*=1e6;return Math.round(v)};
+function nextDow(i){const d=new Date();let n=(i-d.getDay()+7)%7;if(n===0)n=7;d.setDate(d.getDate()+n);return dstr(d)}
+function parseCmd(raw){
+  let s=' '+String(raw).replace(/\s+/g,' ').trim()+' ';
+  const o={kind:'task',priority:'LOW'};
+  const take=(re,fn)=>{const m=s.match(re);if(!m)return false;if(fn)fn(m);s=s.replace(re,' ');return true};
+  for(const [k,ws] of KINDS){const re=new RegExp('^\\s*(?:'+ws.map(reEsc).join('|')+')'+E+'[\\s:,،-]*','i');if(re.test(s)){o.kind=k;if(!/^\s*(quotation|quote|عرض سعر)/i.test(s))s=' '+s.replace(re,' ');break}}
+  if(o.kind==='contact')return parseContact(s,o);
+  // priority
+  if(take(rx(['high priority','priority high','priority is high','top priority','urgent','asap','أولوية عالية','اولوية عالية','أولويه عاليه','اولويه عاليه','عاجل','مستعجل','مهم جدا'])))o.priority='HIGH';
+  else take(rx(['low priority','priority low','priority is low','أولوية منخفضة','اولوية منخفضة','أولوية عادية','اولوية عادية']));
+  // stage / status
+  if(o.kind==='task'){
+    if(take(rx(['in progress','status doing','stage doing','doing now','قيد التنفيذ','جاري العمل'])))o.stage='DOING';
+    else if(take(rx(['on hold','status pending','stage pending','pending','معلقة','معلق'])))o.stage='PENDING';
+    else if(take(rx(['already done','status done','stage done','mark as done','منجزة'])))o.stage='DONE';
+  }
+  if(o.kind==='issue'){
+    take(/(^|\s)(?:waiting|wait)\s+(?:for|on)\s+(?:the\s+)?(customer|client|spare parts|parts|supplier|vendor|procurement|finance|logistics|warehouse|internal(?:\s+(?:department|dept))?)(?=$|[\s,.])/i,m=>{const w=m[2].toLowerCase();o.status='WAITING';if(/customer|client/.test(w))o.waitingOn='Customer';else if(/parts/.test(w))o.waitingOn='Spare parts';else if(/supplier|vendor/.test(w))o.waitingOn='Supplier';else{o.waitingOn='Internal dept';if(!/internal/.test(w))o.owner=w[0].toUpperCase()+w.slice(1)}});
+    take(/(^|\s)(?:بانتظار|بإنتظار|ننتظر|انتظار)\s+(العميل|قطع الغيار|القطع|المورد|المشتريات|المالية|المستودع|قسم\s+\S+)/,m=>{const w=m[2];o.status='WAITING';if(w==='العميل')o.waitingOn='Customer';else if(/القطع|الغيار/.test(w))o.waitingOn='Spare parts';else if(w==='المورد')o.waitingOn='Supplier';else{o.waitingOn='Internal dept';o.owner=w}});
+  }
+  // amount
+  if(o.kind==='opp'){
+    take(new RegExp('(^|\\s)(?:(?:worth|value of|value|amount of|amount|بقيمة|قيمة|بمبلغ|مبلغ)\\s*)?'+NUMW.source+'\\s*(?:sar|sr|riyals?|ريال)'+E,'i'),m=>o.amount=toNum(m[2],m[3]))||
+    take(new RegExp('(^|\\s)(?:worth|value of|value|amount of|amount|بقيمة|قيمة|بمبلغ|مبلغ)\\s*'+NUMW.source+E,'i'),m=>o.amount=toNum(m[2],m[3]))||
+    take(new RegExp('(^|\\s)(\\d[\\d,]*(?:\\.\\d+)?)\\s*(k|thousand|million|ألف|الف|مليون)'+E,'i'),m=>o.amount=toNum(m[2],m[3]));
+  }
+  // dates
+  const t0=today();const P='(?:(?:due|on|by|before|for)\\s+)?';
+  take(/(^|\s)(?:(?:due|on|by|before)\s+)?(\d{4})-(\d{1,2})-(\d{1,2})(?=$|[\s,.])/i,m=>o.due=m[2]+'-'+pad(m[3])+'-'+pad(m[4]))||
+  take(/(^|\s)(?:(?:due|on|by|before)\s+)?(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?(?=$|[\s,.])/i,m=>{let y=m[4]?+(m[4].length===2?'20'+m[4]:m[4]):new Date().getFullYear();let d=y+'-'+pad(m[3])+'-'+pad(m[2]);if(!m[4]&&d<t0)d=(y+1)+'-'+pad(m[3])+'-'+pad(m[2]);o.due=d})||
+  take(rx(['day after tomorrow','بعد بكرة','بعد بكره','بعد غد'],P),()=>o.due=addDays(t0,2))||
+  take(rx(['today','tonight','اليوم','الليلة'],P),()=>o.due=t0)||
+  take(rx(['tomorrow','بكرة','بكره','غدا','غداً','باكر'],P),()=>o.due=addDays(t0,1))||
+  take(rx(['next week','الأسبوع الجاي','الاسبوع الجاي','الأسبوع القادم','الاسبوع القادم'],P),()=>o.due=addDays(t0,7))||
+  take(rx(['end of the month','end of month','آخر الشهر','اخر الشهر','نهاية الشهر'],P),()=>{const d=new Date();o.due=dstr(new Date(d.getFullYear(),d.getMonth()+1,0))})||
+  take(/(^|\s)(?:in|within)\s+(\d+)\s+days?(?=$|[\s,.])/i,m=>o.due=addDays(t0,+m[2]))||
+  take(/(^|\s)(?:بعد|خلال)\s+(\d+)\s+(?:أيام|ايام|يوم)/,m=>o.due=addDays(t0,+m[2]))||
+  DEN.some((d,i)=>take(new RegExp(B+'(?:(?:due|on|by|before|next|this)\\s+)?'+d+E,'i'),()=>o.due=nextDow(i)))||
+  DAR.some((ws,i)=>take(new RegExp(B+'(?:يوم\\s+)?(?:'+ws.join('|')+')'+E),()=>o.due=nextDow(i)));
+  // places (kept in title)
+  const pls=all('place').sort((a,b)=>b.name.length-a.name.length);
+  for(const p of pls){if(rx([p.name]).test(s)){o.place=p.id;o.region=p.region;break}}
+  // region
+  if(!o.region){for(const r of REGIONS){const ws=RALIAS[r.id];const ar=ws.filter(w=>/[؀-ۿ]/.test(w)).map(w=>'ب'+w);const all2=ws.concat(ar);
+    const strip=new RegExp('(^|\\s)(?:(?:in|at|for|region|في|منطقة|بمنطقة)\\s+)?(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?\\s*[.,]?\\s*$','i');
+    const strip2=new RegExp('(^|\\s)(?:in|at|region|في|منطقة|بمنطقة)\\s+(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?'+E,'i');
+    if(take(strip)||take(strip2)||rx(all2).test(s)){o.region=r.id;break}}}
+  // contact (kept in title)
+  for(const c of all('contact')){const full=c.name.trim();const first=full.split(/\s+/)[0];
+    if(rx([full]).test(s)||(first.length>=3&&rx([first],'(?:with|for|to|call|email|مع|كلم|اتصل على)\\s+').test(s))){o.contact=c.id;break}}
+  let title=s.replace(/\s+/g,' ').trim().replace(/^[,،.:;\-\s]+|[,،.:;\-\s]+$/g,'');
+  title=title.replace(/\s+(?:on|by|for|in|at|with|due|and|في|مع|و)$/i,'').trim();
+  if(/^[a-z]/.test(title))title=title[0].toUpperCase()+title.slice(1);
+  if(o.kind==='issue'&&!o.status)o.status='OPEN';
+  if(o.kind==='task'&&!o.stage)o.stage='TO DO';
+  if(o.kind==='opp')o.oppStage='LEAD';
+  o.title=title;return o;
+}
+function parseContact(s,o){
+  s=s.trim();
+  const em=s.match(/[\w.+-]+@[\w-]+\.[\w.]+/);if(em){o.email=em[0];s=s.replace(em[0],' ')}
+  const ph=s.match(/\+?\d[\d\s-]{7,}\d/);if(ph){o.phone=ph[0].replace(/\s+/g,' ').trim();s=s.replace(ph[0],' ')}
+  for(const r of REGIONS){const all2=RALIAS[r.id];const re=new RegExp('(^|[\\s,،])(?:(?:in|region|منطقة)\\s+)?(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?'+E,'i');if(re.test(s)){o.region=r.id;s=s.replace(re,' ');break}}
+  const kw=(re,k)=>{const m=s.match(re);if(m){o[k]=m[1].trim();s=s.replace(m[0],' ,')}};
+  kw(/(?:department|dept|قسم)\s*(?:is\s+)?([^,،]+)/i,'department');
+  kw(/(?:responsible for|in charge of|handles|responsibility|مسؤول عن|مسئول عن|مسؤوليته)\s*([^,،]+)/i,'responsibility');
+  kw(/(?:company|from|شركة)\s+([^,،]+)/i,'company');
+  const parts=s.split(/\s*[,،\n]\s*|\s+-\s+/).map(x=>x.trim()).filter(Boolean);
+  o.name=parts.shift()||'';
+  for(const p of parts){if(!o.department)o.department=p;else if(!o.responsibility)o.responsibility=p;else if(!o.company)o.company=p;else o.notes=(o.notes?o.notes+', ':'')+p}
+  o.name=o.name.replace(/\b[a-z]/g,c=>c.toUpperCase());
+  return o;
+}
+
+/* ---------- command sheet ---------- */
+let cmdState={text:'',kind:null,parsed:null};
+function cmdSheet(){
+  cmdState={text:'',kind:null,parsed:null};
+  openSheet(`<div class="sheethead"><h2 style="margin:0">Say or type</h2><button class="btn small ghost" data-act="close">Close</button></div>
+  <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><textarea class="cmd" id="cmdText" placeholder="Task follow up chiller quotation tomorrow high priority Jazan" autocapitalize="sentences"></textarea>
+  ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>':''}</div>
+  <div class="hint">${dict?'Tap the microphone, or type.':'On iPhone: tap the box, then the microphone key on the keyboard, and speak.'} <button class="link" data-act="more" data-v="help" data-close="1">Examples</button></div>
+  <button class="btn dark" data-act="readcmd" style="width:100%">Read</button>
+  <div id="cmdOut"></div>`);
+  setTimeout(()=>{const t=$('#cmdText');t&&t.focus()},30);
+}
+function showParsed(){
+  const out=$('#cmdOut');if(!out)return;
+  const p=cmdState.parsed;if(!p||!(p.title||p.name)){out.innerHTML='';return}
+  const kind=p.kind;const o=Object.assign({},p);if(kind==='contact'&&!o.name)o.name=o.title;if(kind!=='contact'&&!o.title)o.title=o.name;
+  out.innerHTML=`<div class="kindsw">${['task','issue','opp','contact'].map(k=>`<button class="${k===kind?'on':''}" data-act="kind" data-v="${k}">${k==='opp'?'Deal':KNAME[k]}</button>`).join('')}</div>
+  <form class="f" id="ef" data-kind="${kind}" data-id="">${fields(kind,o)}<div class="actions"><button class="btn pri" type="submit">Save ${kind==='opp'?'deal':KNAME[kind].toLowerCase()}</button><button class="btn ghost" type="button" data-act="cmd">Clear</button></div></form>`;
+}
+let dictBuf='';
+function stopDict(){if(dict){try{dict.stop()}catch(e){}}}
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset&&t.dataset.q){st[t.dataset.q]=t.value;const l=$('#list');if(l)l.innerHTML={tasks:taskList,issues:issueList,contacts:contactList}[st.tab]()}
+});
+
+/* ---------- actions ---------- */
+let pendingDel=null;
+document.addEventListener('click',e=>{
+  if(e.target.closest('[data-stop]'))return;
+  const el=e.target.closest('[data-act],[data-tab]');if(!el)return;
+  if(el.closest('#tabs')&&el.dataset.tab){st.tab=el.dataset.tab;if(st.tab==='more')st.more=null;if(st.tab==='regions')st.region=null;window.scrollTo(0,0);render();return}
+  const a=el.dataset.act,id=el.dataset.id;
+  if(a==='close')return closeSheet();
+  if(a==='go'){st.tab=el.dataset.tab;if(el.dataset.high){st.tHigh=true;st.tStage='OPEN'}window.scrollTo(0,0);return render()}
+  if(a==='set'){st[el.dataset.k]=el.dataset.v;return render()}
+  if(a==='toggle'){st[el.dataset.k]=!st[el.dataset.k];return render()}
+  if(a==='region'){st.tab='regions';st.region=id||null;st.rPlace='';st.rTab='tasks';window.scrollTo(0,0);return render()}
+  if(a==='more'){if(el.dataset.close)closeSheet();st.tab='more';st.more=el.dataset.v||null;window.scrollTo(0,0);return render()}
+  if(a==='report'){st.tab='more';st.more='reports';st.rep='month';st.repMonth=el.dataset.m;window.scrollTo(0,0);return render()}
+  if(a==='new'){const k=el.dataset.kind;const base={};if(st.tab==='regions'&&st.region){base.region=st.region;if(st.rPlace&&k!=='place'&&k!=='contact')base.place=st.rPlace}if(k==='place'&&!base.region)base.region='asir';return editSheet(k,base)}
+  if(a==='edit'){const o=get(id);if(o)editSheet(o.kind,o);return}
+  if(a==='done'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=o.stage==='DONE'?'TO DO':'DONE';applyTransitions(o,prev);put(o);if(o.stage==='DONE')toast('Done ✓',()=>{put(applyTransitions(Object.assign(o,{stage:prev.stage}),o))});return}
+  if(a==='next'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=STAGES[(STAGES.indexOf(o.stage)+1)%STAGES.length];applyTransitions(o,prev);put(o);return}
+  if(a==='del'){
+    if(pendingDel!==id){pendingDel=id;el.textContent='Tap again to delete';setTimeout(()=>{if(pendingDel===id)pendingDel=null},3000);return}
+    pendingDel=null;const o=remove(id);closeSheet();toast(`${KNAME[o.kind]} deleted`,()=>put(o));return}
+  if(a==='cmd')return cmdSheet();
+  if(a==='readcmd'){const t=$('#cmdText');cmdState.text=t.value;cmdState.parsed=t.value.trim()?parseCmd(t.value):null;if(!cmdState.parsed)return toast('Say or type something first');return showParsed()}
+  if(a==='kind'){const f=$('#ef');let cur=cmdState.parsed;if(f){const k0=f.dataset.kind;cur=Object.assign({},readForm(f,k0,{}),{kind:k0})}
+    const k=el.dataset.v;const txt=cur.title||cur.name||'';
+    cmdState.parsed=Object.assign({},cur,{kind:k,title:txt,name:txt});
+    if(k==='task'&&!cmdState.parsed.stage)cmdState.parsed.stage='TO DO';if(k==='issue'&&!cmdState.parsed.status)cmdState.parsed.status='OPEN';if(k==='opp'&&!cmdState.parsed.oppStage)cmdState.parsed.oppStage='LEAD';
+    if(k==='contact'&&cmdState.text){const pc=parseCmd('contact '+cmdState.text.replace(/^\s*\S+\s*/,''));Object.assign(cmdState.parsed,pc)}
+    return showParsed()}
+  if(a==='mic'){
+    if(!dict)return;const btn=$('#micBtn');
+    if(btn.classList.contains('live')){stopDict();return}
+    const ta=$('#cmdText');dictBuf=ta.value?ta.value.trim()+' ':'';
+    dict.onPartial(({text})=>{const t=$('#cmdText');if(t)t.value=dictBuf+text});
+    dict.onFinal(({text})=>{dictBuf+=text+' ';const t=$('#cmdText');if(t)t.value=dictBuf});
+    dict.onState(({state})=>{const b=$('#micBtn');if(b)b.classList.toggle('live',state==='listening');if(state==='idle'){const t=$('#cmdText');if(t&&t.value.trim()){cmdState.text=t.value;cmdState.parsed=parseCmd(t.value);showParsed()}}});
+    dict.start().catch(err=>{if(err&&err.code==='not_granted')toast('Microphone not allowed — type instead')});
+    return}
+  if(a==='export'){
+    const data=JSON.stringify({app:'field-desk',version:1,exported:new Date().toISOString(),items:[...items.values()]},null,1);
+    const fname='field-desk-backup-'+today()+'.json';
+    const ok=()=>{try{localStorage.setItem('fielddesk.lastBackup',String(Date.now()))}catch(e){}toast('Backup saved');render()};
+    if(dl){dl.save({filename:fname,data}).then(ok).catch(err=>{if(err&&err.code!=='declined')toast('Could not save the file')});return}
+    const file=new File([data],fname,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){navigator.share({files:[file],title:'Field Desk backup'}).then(ok).catch(()=>{});return}
+    const url=URL.createObjectURL(file);const a2=document.createElement('a');a2.href=url;a2.download=fname;document.body.appendChild(a2);a2.click();a2.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);ok();return}
+  if(a==='import'){$('#importFile').click();return}
+});
+$('#importFile').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{const j=JSON.parse(await f.text());const arr=Array.isArray(j)?j:j.items;let n=0;
+    (arr||[]).forEach(o=>{if(o&&o.id&&SPEC[o.kind]){put(o,true);n++}});render();toast(`Imported ${n} item${n===1?'':'s'}`)}
+  catch(err){toast('That file is not a Field Desk backup')}
+  e.target.value='';
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&$('#sheet').classList.contains('on'))closeSheet();
+  if(e.key==='Enter'&&!e.shiftKey&&e.target.id==='cmdText'){e.preventDefault();$('[data-act="readcmd"]').click()}
+});
+
+render();setSync('local');initSync();
+if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+if('serviceWorker' in navigator&&window.isSecureContext)navigator.serviceWorker.register('sw.js').catch(()=>{});
+window.__fd={parseCmd};
+}
+</script>
+</body>
+</html>
