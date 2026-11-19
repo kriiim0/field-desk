@@ -165,6 +165,15 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 .actrow.danger{border-color:var(--acc)}.actrow.danger b{color:var(--acc)}
 .steps{padding-left:20px;display:grid;gap:6px}.steps a{color:var(--acc);font-weight:700}
 .lang{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;font-weight:700;min-height:32px}
+.crow{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:6px 8px}
+.crow .cname{flex:1;font-size:16px;padding:9px 10px;border-radius:9px;border:1px solid transparent;background:var(--panel);min-height:40px}
+.crow .cname:focus{border-color:var(--ink);outline:none}
+.crow input[type=color]{width:34px;height:34px;border:0;padding:0;background:none;flex:none}
+.crow .cnt{min-width:22px;text-align:center}
+.crow .btn.small{min-height:36px;min-width:36px;padding:6px 8px}
+.crow .btn:disabled{opacity:.3}
+.sw{display:flex;align-items:center;gap:10px;flex:1;font-weight:600;padding:6px 4px}
+.sw input{width:22px;height:22px;accent-color:var(--acc)}
 .money{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
 </style>
 </head>
@@ -198,8 +207,16 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 <script>
 {
 /* ---------- constants ---------- */
-const REGIONS=[{id:'asir',name:'Asir'},{id:'jazan',name:'Jazan'},{id:'najran',name:'Najran'}];
-const RCOL={asir:'#ff4a1c',jazan:'#1550a8',najran:'#1d7a4c'};
+const PALETTE=['#ff4a1c','#1550a8','#1d7a4c','#8a3ffc','#b26b00','#0f7c8c','#c2185b','#5d6b2f'];
+const slugId=(p,n)=>p+String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)+'-'+Math.random().toString(36).slice(2,5);
+const HOMEW=[['stats','Key numbers'],['banner','Reminders (monthly report, backup)'],['attention','Needs attention'],['today','Today & in progress'],['aging','Issues waiting 7+ days'],['regions','By region'],['lobs','By line of business'],['depts','By department'],['pipeline','Open opportunities']];
+const DEF_CFG={
+  regions:[{id:'asir',name:'Asir',color:'#ff4a1c'},{id:'jazan',name:'Jazan',color:'#1550a8'},{id:'najran',name:'Najran',color:'#1d7a4c'}],
+  depts:['Sales','Service','Spare Parts','Projects','Procurement','Finance','Logistics'].map((n,i)=>({id:'d'+i,name:n})),
+  lobs:['Chillers','Service Contracts (AMC)','Spare Parts','Retrofit & Upgrades','Controls & BMS','Unitary & Ducted'].map((n,i)=>({id:'l'+i,name:n})),
+  home:HOMEW.map(([k])=>({k,on:true}))
+};
+let REGIONS=DEF_CFG.regions,DEPTS=DEF_CFG.depts,LOBS=DEF_CFG.lobs,HOME=DEF_CFG.home,RCOL={};
 const STAGES=['TO DO','DOING','PENDING','DONE'];
 const PRI=['HIGH','LOW'];
 const ISTAT=['OPEN','WAITING','RESOLVED'];
@@ -216,6 +233,8 @@ const SPEC={
  place:[['name','Name','text'],['ptype','Type','sel',PTYPES],['region','Region','region'],['notes','Notes','area']]
 };
 const KNAME={task:'Task',issue:'Issue',opp:'Opportunity',contact:'Contact',place:'Place'};
+['task','issue','opp'].forEach(k=>{const i=SPEC[k].findIndex(f=>f[0]==='contact')+1;SPEC[k].splice(i,0,['lob','Line of business','lob'],['dept','Department','dept'])});
+SPEC.contact[1]=['department','Department','dtext'];
 
 /* ---------- utils ---------- */
 const $=s=>document.querySelector(s);
@@ -231,6 +250,19 @@ const fmtTs=ts=>{const d=new Date(ts);return d.getDate()+' '+MON[d.getMonth()]+'
 const daysSince=ts=>Math.max(0,Math.floor((Date.now()-ts)/864e5));
 const money=n=>(Number(n)||0).toLocaleString('en-US')+' SAR';
 const rname=id=>(REGIONS.find(r=>r.id===id)||{}).name||'';
+const lname=id=>(LOBS.find(r=>r.id===id)||{}).name||'';
+const dname=id=>(DEPTS.find(r=>r.id===id)||{}).name||'';
+const tags=o=>[lname(o.lob),dname(o.dept)].filter(Boolean).join(' · ');
+function applyCfg(){
+  let c={};try{c=JSON.parse(JSON.stringify(items.get('cfg')||{}))}catch(e){}
+  REGIONS=Array.isArray(c.regions)&&c.regions.length?c.regions:DEF_CFG.regions;
+  DEPTS=Array.isArray(c.depts)?c.depts:DEF_CFG.depts;
+  LOBS=Array.isArray(c.lobs)?c.lobs:DEF_CFG.lobs;
+  const h=Array.isArray(c.home)?c.home.filter(x=>HOMEW.some(w=>w[0]===x.k)):[];
+  HOMEW.forEach(([k])=>{if(!h.some(x=>x.k===k))h.push({k,on:true})});HOME=h;
+  RCOL={};REGIONS.forEach((r,i)=>RCOL[r.id]=r.color||PALETTE[i%PALETTE.length]);
+}
+function saveCfg(){put({id:'cfg',kind:'config',regions:REGIONS,depts:DEPTS,lobs:LOBS,home:HOME})}
 const opt=(arr,v,blank)=>(blank!==undefined?`<option value="">${blank}</option>`:'')+arr.map(a=>{const [val,lab]=Array.isArray(a)?a:[a,a];return `<option value="${esc(val)}"${val===v?' selected':''}>${esc(lab)}</option>`}).join('');
 
 /* ---------- store ---------- */
@@ -279,7 +311,7 @@ async function initSync(){
 }
 
 /* ---------- ui state ---------- */
-const st={tab:'home',more:null,tStage:'OPEN',tHigh:false,tRegion:'',tQ:'',iStat:'ACTIVE',iQ:'',cQ:'',cDept:'',oStage:'ACTIVE',region:null,rTab:'tasks',rPlace:'',rep:'month',repMonth:today().slice(0,7),repYear:new Date().getFullYear(),repRegion:''};
+const st={tab:'home',more:null,tStage:'OPEN',tHigh:false,tRegion:'',tLob:'',tDept:'',tQ:'',iStat:'ACTIVE',iQ:'',cQ:'',cDept:'',oStage:'ACTIVE',region:null,rTab:'tasks',rPlace:'',rep:'month',repMonth:today().slice(0,7),repYear:new Date().getFullYear(),repRegion:''};
 let toastTimer,undoFn=null;
 function toast(msg,undo){const t=$('#toast');t.querySelector('span').textContent=msg;const b=$('#toastBtn');b.hidden=!undo;undoFn=undo||null;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),undo?6000:3200)}
 $('#toastBtn').addEventListener('click',()=>{if(undoFn){undoFn();undoFn=null}$('#toast').classList.remove('on')});
@@ -305,20 +337,20 @@ function taskCard(t){
   return `<article class="card${t.priority==='HIGH'&&isOpenT(t)?' hi':''}${t.stage==='DONE'?' done':''}" data-act="edit" data-id="${t.id}">
   <button class="check${t.stage==='DONE'?' on':''}" data-act="done" data-id="${t.id}" aria-label="Mark done">${t.stage==='DONE'?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M4 12l5 5L20 6"/></svg>':''}</button>
   <div class="body"><div class="t">${t.priority==='HIGH'&&isOpenT(t)?'<span class="tag">HIGH</span>':''}${esc(t.title)}</div>
-  <div class="meta">${t.due?`<span class="${late?'late':''}">${late?'Overdue · ':''}${fmtD(t.due)}</span>`:''}${where(t)?`<span>${esc(where(t))}</span>`:''}${c?`<span>${esc(c.name)}</span>`:''}</div></div>
+  <div class="meta">${t.due?`<span class="${late?'late':''}">${late?'Overdue · ':''}${fmtD(t.due)}</span>`:''}${where(t)?`<span>${esc(where(t))}</span>`:''}${c?`<span>${esc(c.name)}</span>`:''}${tags(t)?`<span>${esc(tags(t))}</span>`:''}</div></div>
   <button class="pill ${t.stage.replace(' ','')}" data-act="next" data-id="${t.id}" aria-label="Move to next stage">${t.stage}</button></article>`;
 }
 function issueCard(i){
   const age=daysSince(i.createdAt);const res=i.status==='RESOLVED';
   return `<article class="card${i.priority==='HIGH'&&!res?' hi':''}${res?' done':''}" data-act="edit" data-id="${i.id}">
   <div class="body"><div class="t">${i.priority==='HIGH'&&!res?'<span class="tag">HIGH</span>':''}${esc(i.title)}</div>
-  <div class="meta"><span class="${!res&&age>=14?'late':''}">${res?'Resolved '+fmtTs(i.resolvedAt||i.updatedAt):age+' day'+(age===1?'':'s')+' open'}</span>${i.waitingOn&&!res?`<span>Waiting on: ${esc(i.waitingOn)}${i.owner?' ('+esc(i.owner)+')':''}</span>`:''}${where(i)?`<span>${esc(where(i))}</span>`:''}${(i.log||[]).length?`<span>${i.log.length} update${i.log.length>1?'s':''}</span>`:''}</div></div>
+  <div class="meta"><span class="${!res&&age>=14?'late':''}">${res?'Resolved '+fmtTs(i.resolvedAt||i.updatedAt):age+' day'+(age===1?'':'s')+' open'}</span>${i.waitingOn&&!res?`<span>Waiting on: ${esc(i.waitingOn)}${i.owner?' ('+esc(i.owner)+')':''}</span>`:''}${where(i)?`<span>${esc(where(i))}</span>`:''}${tags(i)?`<span>${esc(tags(i))}</span>`:''}${(i.log||[]).length?`<span>${i.log.length} update${i.log.length>1?'s':''}</span>`:''}</div></div>
   <span class="pill ${i.status}">${i.status}</span></article>`;
 }
 function oppCard(o){
   return `<article class="card${o.priority==='HIGH'&&oppActive(o)?' hi':''}" data-act="edit" data-id="${o.id}">
   <div class="body"><div class="t">${esc(o.title)}</div>
-  <div class="meta"><span class="money" style="color:var(--ink)">${money(o.amount)}</span>${o.due?`<span>${fmtD(o.due)}</span>`:''}${where(o)?`<span>${esc(where(o))}</span>`:''}</div>
+  <div class="meta"><span class="money" style="color:var(--ink)">${money(o.amount)}</span>${o.due?`<span>${fmtD(o.due)}</span>`:''}${where(o)?`<span>${esc(where(o))}</span>`:''}${tags(o)?`<span>${esc(tags(o))}</span>`:''}</div>
   ${o.description?`<div class="meta">${esc(o.description).slice(0,140)}</div>`:''}</div>
   <span class="pill ${o.oppStage}">${o.oppStage}</span></article>`;
 }
@@ -346,21 +378,34 @@ V.home=()=>{
   else if(d.getDate()<=3){const p=new Date(d.getFullYear(),d.getMonth()-1,1);banner=`<button class="banner" data-act="report" data-m="${p.getFullYear()}-${pad(p.getMonth()+1)}"><span><b>Your ${MON[p.getMonth()]} report is ready.</b> Completed work, open priorities, regions.</span><span>Open</span></button>`}
   let lb=0;try{lb=+localStorage.getItem('fielddesk.lastBackup')||0}catch(e){}
   if(!banner&&items.size>=10&&Date.now()-lb>30*864e5)banner=`<button class="banner" data-act="more" data-v="data"><span><b>Back up your data.</b> ${lb?'Last backup '+fmtTs(lb):'No backup yet'} — takes 10 seconds.</span><span>Open</span></button>`;
-  const regionRows=REGIONS.map(r=>{const n=open.filter(t=>t.region===r.id).length;return {r,n}});const mx=Math.max(1,...regionRows.map(x=>x.n));
-  return `<div class="sub">${DOW[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}</div>
-  <h1>${high.length?`${high.length} high-priority task${high.length>1?'s':''} open`:open.length?`${open.length} open task${open.length>1?'s':''}, none urgent`:'All clear'}</h1>
-  <div class="stats">
+  const grp=(key,list,title)=>{
+    if(!list.length)return '';
+    const rows=list.map(g=>({g,n:open.filter(t=>t[key]===g.id).length,h:high.filter(t=>t[key]===g.id).length,i:actI.filter(x=>x[key]===g.id).length}));
+    const mx=Math.max(1,...rows.map(x=>x.n));
+    return `<h2>${title}</h2><div class="list">${rows.map(x=>`<button class="region" data-act="grp" data-k="${key}" data-id="${x.g.id}" style="padding:12px 14px"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${esc(x.g.name)}</b><span class="sub" style="white-space:nowrap"><b style="color:var(--ink)">${x.n}</b> open${x.h?` · <b style="color:var(--acc)">${x.h} high</b>`:''}${x.i?` · ${x.i} issue${x.i>1?'s':''}`:''}</span></div><div class="bar"><i style="width:${x.n/mx*100}%;background:${key==='region'?RCOL[x.g.id]:'var(--ink)'}"></i></div></button>`).join('')}</div>`;
+  };
+  const O=all('opp').filter(oppActive).sort((p,q)=>(q.amount||0)-(p.amount||0));
+  const W={
+    stats:`<div class="stats">
    <button class="stat${high.length?' hot':''}" data-act="go" data-tab="tasks" data-high="1"><b>${high.length}</b><span>High priority</span></button>
    <button class="stat" data-act="go" data-tab="tasks"><b>${late.length}</b><span>Overdue</span></button>
    <button class="stat" data-act="go" data-tab="tasks"><b>${open.length}</b><span>Open tasks</span></button>
    <button class="stat" data-act="go" data-tab="issues"><b>${actI.length}</b><span>Open issues</span></button>
-  </div>${banner}
-  <div class="sectionhead"><h2>Needs attention</h2><button class="link" data-act="new" data-kind="task">+ Task</button></div>
-  ${listOr(attn,taskCard,items.size?'Nothing high-priority or overdue.':'Tap the red ✦ button and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}
-  ${todayL.length?`<h2>Today &amp; in progress</h2>${listOr(todayL,taskCard)}`:''}
-  ${agingI.length?`<h2>Issues waiting 7+ days</h2>${listOr(agingI,issueCard)}`:''}
-  <h2>Open tasks by region</h2>
-  <div class="list">${regionRows.map(x=>`<button class="region" data-act="region" data-id="${x.r.id}" style="padding:12px 14px"><div class="row" style="justify-content:space-between"><b>${x.r.name}</b><span class="money">${x.n}</span></div><div class="bar"><i style="width:${x.n/mx*100}%;background:${RCOL[x.r.id]}"></i></div></button>`).join('')}</div>`;
+  </div>`,
+    banner,
+    attention:`<div class="sectionhead"><h2>Needs attention</h2><button class="link" data-act="new" data-kind="task">+ Task</button></div>
+  ${listOr(attn,taskCard,items.size>1?'Nothing high-priority or overdue.':'Tap the red ✦ button and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}`,
+    today:todayL.length?`<h2>Today &amp; in progress</h2>${listOr(todayL,taskCard)}`:'',
+    aging:agingI.length?`<h2>Issues waiting 7+ days</h2>${listOr(agingI,issueCard)}`:'',
+    regions:grp('region',REGIONS,'By region'),
+    lobs:grp('lob',LOBS,'By line of business'),
+    depts:grp('dept',DEPTS,'By department'),
+    pipeline:`<div class="sectionhead"><h2>Open opportunities</h2><button class="link" data-act="more" data-v="opps">All ›</button></div><p class="sub" style="margin-top:-6px">${O.length} open · <span class="money" style="color:var(--ink)">${money(O.reduce((x,o)=>x+(+o.amount||0),0))}</span></p>${listOr(O.slice(0,3),oppCard,'No open opportunities.')}`
+  };
+  return `<div class="sub">${DOW[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}</div>
+  <h1>${high.length?`${high.length} high-priority task${high.length>1?'s':''} open`:open.length?`${open.length} open task${open.length>1?'s':''}, none urgent`:'All clear'}</h1>
+  ${HOME.filter(h=>h.on).map(h=>W[h.k]||'').join('\n')}
+  <div style="text-align:center;margin-top:22px"><button class="link" data-act="more" data-v="custom">Customize home ›</button></div>`;
 };
 
 function taskList(){
@@ -368,6 +413,8 @@ function taskList(){
   if(st.tStage==='OPEN')T=T.filter(isOpenT);else if(st.tStage!=='ALL')T=T.filter(t=>t.stage===st.tStage);
   if(st.tHigh)T=T.filter(t=>t.priority==='HIGH');
   if(st.tRegion)T=T.filter(t=>t.region===st.tRegion);
+  if(st.tLob)T=T.filter(t=>t.lob===st.tLob);
+  if(st.tDept)T=T.filter(t=>t.dept===st.tDept);
   if(st.tQ){const q=st.tQ.toLowerCase();T=T.filter(t=>(t.title+' '+(t.notes||'')+' '+where(t)).toLowerCase().includes(q))}
   return listOr(T.sort(sortTasks),taskCard,'No tasks here.');
 }
@@ -376,6 +423,7 @@ V.tasks=()=>{
   return `<div class="sectionhead"><h1>Tasks</h1><button class="btn pri small" data-act="new" data-kind="task">+ New</button></div>
   <div class="chips" style="margin-top:12px">${['OPEN',...STAGES,'ALL'].map(s=>`<button class="chip${st.tStage===s?' on':''}" data-act="set" data-k="tStage" data-v="${s}">${s==='OPEN'?'Open':s==='ALL'?'All':s} · ${cnt(s)}</button>`).join('')}</div>
   <div class="chips"><button class="chip red${st.tHigh?' on':''}" data-act="toggle" data-k="tHigh">HIGH only</button>${[['','All regions'],...REGIONS.map(r=>[r.id,r.name])].map(([id,n])=>`<button class="chip${st.tRegion===id?' on':''}" data-act="set" data-k="tRegion" data-v="${id}">${n}</button>`).join('')}</div>
+  ${LOBS.length||DEPTS.length?`<div class="two f" style="margin-bottom:10px">${LOBS.length?`<select id="fLob" aria-label="Line of business">${opt(LOBS.map(x=>[x.id,x.name]),st.tLob,'All lines of business')}</select>`:''}${DEPTS.length?`<select id="fDept" aria-label="Department">${opt(DEPTS.map(x=>[x.id,x.name]),st.tDept,'All departments')}</select>`:''}</div>`:''}
   <input class="search" id="q-tasks" data-q="tQ" placeholder="Search tasks" value="${esc(st.tQ)}">
   <div id="list">${taskList()}</div>`;
 };
@@ -426,7 +474,7 @@ V.regions=()=>{
    ${s.pipe?`<div class="sub" style="margin-top:8px">Open pipeline <span class="money" style="color:var(--ink)">${money(s.pipe)}</span></div>`:''}</button>`}).join('')}</div>`;
 };
 function regionDetail(){
-  const id=st.region,r=REGIONS.find(x=>x.id===id),s=regionStats(id);
+  const id=st.region,r=REGIONS.find(x=>x.id===id);if(!r){st.region=null;return V.regions()}const s=regionStats(id);
   const places=all('place').filter(p=>p.region===id).sort((a,b)=>a.name.localeCompare(b.name));
   const pf=o=>!st.rPlace||o.place===st.rPlace;
   let body='';
@@ -449,8 +497,10 @@ V.more=()=>{
   if(st.more==='help')return helpView();
   if(st.more==='data')return dataView();
   if(st.more==='ai')return aiView();
+  if(st.more==='custom')return customView();
   const O=all('opp');const pipe=O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0);
   return `<h1>More</h1><div class="morelist" style="margin-top:16px">
+  <button data-act="more" data-v="custom"><span>Customize<small>Home screen, regions, departments, lines of business</small></span>›</button>
   <button data-act="more" data-v="ai"><span>AI assistant<small>${aiKey()?'On · '+aiUsage().n+' requests this month':'Off — tap to turn on'}</small></span>›</button>
   <button data-act="more" data-v="reports"><span>Reports<small>Monthly report and yearly region comparison</small></span>›</button>
   <button data-act="more" data-v="opps"><span>Opportunities &amp; quotations<small>${O.filter(oppActive).length} open · ${money(pipe)}</small></span>›</button>
@@ -458,6 +508,21 @@ V.more=()=>{
   <button data-act="more" data-v="data"><span>Backup &amp; data<small>${items.size} items stored</small></span>›</button></div>`;
 };
 const backBtn='<button class="link" data-act="more" data-v="">‹ More</button>';
+const cfgList=l=>l==='regions'?REGIONS:l==='depts'?DEPTS:l==='lobs'?LOBS:HOME;
+function customView(){
+  const arrows=(l,i,n)=>`<button class="btn small ghost" data-act="cmove" data-l="${l}" data-i="${i}" data-d="-1" ${i===0?'disabled':''} aria-label="Move up">↑</button><button class="btn small ghost" data-act="cmove" data-l="${l}" data-i="${i}" data-d="1" ${i===n-1?'disabled':''} aria-label="Move down">↓</button>`;
+  const used=(key,id)=>[...items.values()].filter(o=>o[key]===id&&o.kind!=='config').length;
+  const listEd=(l,list,key,label)=>`<div class="list">${list.map((g,i)=>`<div class="crow">${l==='regions'?`<input type="color" data-cl="regions" data-i="${i}" data-cf="color" value="${esc(RCOL[g.id]||'#ff4a1c')}" aria-label="Colour">`:''}<input class="cname" data-cl="${l}" data-i="${i}" data-cf="name" value="${esc(g.name)}" aria-label="${label} name"><span class="sub cnt">${used(key,g.id)}</span>${arrows(l,i,list.length)}<button class="btn small danger" data-act="cdel" data-l="${l}" data-i="${i}" aria-label="Delete">✕</button></div>`).join('')||'<div class="empty">None yet.</div>'}</div>
+  <form class="crow" data-add="${l}" style="margin-top:8px;border:0;padding:0"><input class="cname" name="n" placeholder="Add ${label.toLowerCase()}…"><button class="btn small dark" type="submit">Add</button></form>`;
+  return `${backBtn}<h1>Customize</h1>
+  <h2>Home screen</h2><p class="sub" style="margin-top:-6px">Choose what appears on Home and in which order.</p>
+  <div class="list">${HOME.map((h,i)=>`<div class="crow"><label class="sw"><input type="checkbox" data-hw="${i}" ${h.on?'checked':''}><span>${esc((HOMEW.find(w=>w[0]===h.k)||[])[1]||h.k)}</span></label>${arrows('home',i,HOME.length)}</div>`).join('')}</div>
+  <h2>Regions</h2><p class="sub" style="margin-top:-6px">Rename, recolour, reorder, add or remove. The number shows how many items use each one.</p>
+  ${listEd('regions',REGIONS,'region','Region')}
+  <h2>Lines of business</h2>${listEd('lobs',LOBS,'lob','Line of business')}
+  <h2>Departments</h2>${listEd('depts',DEPTS,'dept','Department')}
+  <p class="sub" style="margin-top:18px">Changes save instantly and are included in your backup.</p>`;
+}
 function oppsView(){
   let O=all('opp');const act=O.filter(oppActive);
   const y=new Date().getFullYear();const won=O.filter(o=>o.oppStage==='WON'&&new Date(o.closedAt||o.updatedAt).getFullYear()===y);
@@ -496,12 +561,20 @@ function monthReport(){
   <h2>By region</h2>
   <div class="scroll"><table><thead><tr><th>Region</th><th class="n">Done</th><th class="n">New</th><th class="n">Open</th><th class="n">Issues fixed</th><th class="n">Issues open</th><th class="n">Won SAR</th></tr></thead>
   <tbody>${rows.map(r=>`<tr><td><b>${r.n}</b></td><td class="n">${r.done}</td><td class="n">${r.created}</td><td class="n">${r.open}</td><td class="n">${r.iRes}</td><td class="n">${r.iOpen}</td><td class="n">${(r.won).toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table></div>
+  ${grpTable('lob',LOBS,'By line of business',{done,created,T,iRes,iStill,oWon})}
+  ${grpTable('dept',DEPTS,'By department',{done,created,T,iRes,iStill,oWon})}
   <h2>Completed in ${MON[m-1]}</h2>
   ${done.length?`<div class="scroll"><table><thead><tr><th>Task</th><th>Where</th><th class="n">Done</th></tr></thead><tbody>${done.map(t=>`<tr><td>${t.priority==='HIGH'?'<span class="tag">HIGH</span>':''}${esc(t.title)}</td><td>${esc(where(t))}</td><td class="n">${new Date(t.doneAt).getDate()} ${MON[m-1]}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No tasks completed in this month.</div>'}
   ${iStill.length?`<h2>Issues still waiting</h2><div class="scroll"><table><thead><tr><th>Issue</th><th>Waiting on</th><th class="n">Age</th></tr></thead><tbody>${iStill.map(i=>`<tr><td>${esc(i.title)}</td><td>${esc(i.waitingOn||'')}</td><td class="n">${daysSince(i.createdAt)}d</td></tr>`).join('')}</tbody></table></div>`:''}`;
 }
-function yearStats(y,rid){
-  const a=new Date(y,0,1).getTime(),b=new Date(y+1,0,1).getTime();const f=o=>!rid||o.region===rid;
+function grpTable(key,list,title,D){
+  const rows=[...list.map(g=>[g.id,g.name]),['','Not set']].map(([id,n])=>{const f=o=>(o[key]||'')===id;return {n,done:D.done.filter(f).length,created:D.created.filter(f).length,open:D.T.filter(t=>f(t)&&isOpenT(t)).length,iRes:D.iRes.filter(f).length,iOpen:D.iStill.filter(f).length,won:D.oWon.filter(f).reduce((s,o)=>s+(+o.amount||0),0)}}).filter(r=>r.done+r.created+r.open+r.iRes+r.iOpen+r.won>0);
+  if(!rows.length||(rows.length===1&&rows[0].n==='Not set'))return '';
+  return `<h2>${title}</h2><div class="scroll"><table><thead><tr><th>${key==='lob'?'Line':'Department'}</th><th class="n">Done</th><th class="n">New</th><th class="n">Open</th><th class="n">Issues fixed</th><th class="n">Issues open</th><th class="n">Won SAR</th></tr></thead><tbody>${rows.map(r=>`<tr><td><b>${esc(r.n)}</b></td><td class="n">${r.done}</td><td class="n">${r.created}</td><td class="n">${r.open}</td><td class="n">${r.iRes}</td><td class="n">${r.iOpen}</td><td class="n">${r.won.toLocaleString('en-US')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function yearStats(y,rid,key){
+  key=key||'region';
+  const a=new Date(y,0,1).getTime(),b=new Date(y+1,0,1).getTime();const f=o=>!rid||o[key]===rid;
   const T=all('task').filter(f),I=all('issue').filter(f),O=all('opp').filter(f);
   const done=T.filter(t=>t.stage==='DONE'&&inR(t.doneAt,a,b));
   const months=Array(12).fill(0);done.forEach(t=>months[new Date(t.doneAt).getMonth()]++);
@@ -521,7 +594,8 @@ function yearReport(){
   <div class="legend"><span><i style="background:var(--ink)"></i>${y}</span><span><i style="background:var(--chip)"></i>${y-1}</span></div>
   <h2>Regions compared</h2>
   <div class="scroll"><table><thead><tr><th>Region</th><th class="n">Done ${y}</th><th class="n">Done ${y-1}</th><th class="n">Issues fixed</th><th class="n">Won SAR</th></tr></thead>
-  <tbody>${REGIONS.map(r=>{const a=yearStats(y,r.id),b=yearStats(y-1,r.id);return `<tr><td><b>${r.name}</b></td><td class="n">${a.done}</td><td class="n">${b.done}</td><td class="n">${a.iRes}</td><td class="n">${a.won.toLocaleString('en-US')}</td></tr>`}).join('')}</tbody></table></div>`;
+  <tbody>${REGIONS.map(r=>{const a=yearStats(y,r.id),b=yearStats(y-1,r.id);return `<tr><td><b>${r.name}</b></td><td class="n">${a.done}</td><td class="n">${b.done}</td><td class="n">${a.iRes}</td><td class="n">${a.won.toLocaleString('en-US')}</td></tr>`}).join('')}</tbody></table></div>
+  ${LOBS.length?`<h2>Lines of business compared</h2><div class="scroll"><table><thead><tr><th>Line</th><th class="n">Done ${y}</th><th class="n">Done ${y-1}</th><th class="n">Issues fixed</th><th class="n">Won SAR</th></tr></thead><tbody>${LOBS.map(r=>{const a=yearStats(y,r.id,'lob'),b=yearStats(y-1,r.id,'lob');return `<tr><td><b>${esc(r.name)}</b></td><td class="n">${a.done}</td><td class="n">${b.done}</td><td class="n">${a.iRes}</td><td class="n">${a.won.toLocaleString('en-US')}</td></tr>`}).join('')}</tbody></table></div>`:''}`;
 }
 function reportsView(){
   const y0=new Date().getFullYear();const years=[];for(let y=y0;y>=y0-4;y--)years.push(String(y));
@@ -570,6 +644,7 @@ function dataView(){
 /* ---------- render ---------- */
 let alerted=false;
 function render(){
+  applyCfg();
   const ae=document.activeElement;const keep=ae&&ae.id&&$('#main').contains(ae)?{id:ae.id,s:ae.selectionStart,e:ae.selectionEnd}:null;
   $('#main').innerHTML=V[st.tab]();
   if(keep){const el=document.getElementById(keep.id);if(el){el.focus();try{el.setSelectionRange(keep.s,keep.e)}catch(e){}}}
@@ -590,6 +665,9 @@ function fields(kind,o){
     else if(type==='region')inp=`<select name="region">${opt(REGIONS.map(r=>[r.id,r.name]),v,'—')}</select>`;
     else if(type==='place')inp=`<select name="place">${placeOpts(o.region,v)}</select>`;
     else if(type==='contact')inp=`<select name="contact">${opt(all('contact').sort((a,b)=>a.name.localeCompare(b.name)).map(c=>[c.id,c.name+(c.department?' — '+c.department:'')]),v,'—')}</select>`;
+    else if(type==='lob')inp=`<select name="lob">${opt(LOBS.map(x=>[x.id,x.name]),v,'—')}</select>`;
+    else if(type==='dept')inp=`<select name="dept">${opt(DEPTS.map(x=>[x.id,x.name]),v,'—')}</select>`;
+    else if(type==='dtext')inp=`<input name="${k}" list="dl-dept" value="${esc(v)}"><datalist id="dl-dept">${DEPTS.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>`;
     else if(type==='area')inp=`<textarea name="${k}">${esc(v)}</textarea>`;
     else inp=`<input name="${k}" type="${type==='num'?'number':type==='date'?'date':type==='tel'?'tel':type==='email'?'email':'text'}" ${type==='num'?'inputmode="decimal"':''} value="${esc(v)}" ${k==='title'||k==='name'?'required':''}>`;
     return `<label>${label}${inp}</label>`;
@@ -618,6 +696,11 @@ function editSheet(kind,o){
   <div class="actions"><button class="btn pri" type="submit">Save</button>${!isNew?`<button class="btn danger" type="button" data-act="del" data-id="${o.id}">Delete</button>`:''}</div></form>`);
 }
 document.addEventListener('submit',e=>{
+  const l=e.target.dataset&&e.target.dataset.add;
+  if(l){e.preventDefault();const v=e.target.elements.n.value.trim();if(!v)return;const L=cfgList(l);
+    if(L.some(g=>g.name.toLowerCase()===v.toLowerCase()))return toast('Already in the list');
+    const g={id:slugId(l==='regions'?'r-':l==='lobs'?'l-':'d-',v),name:v};if(l==='regions')g.color=PALETTE[L.length%PALETTE.length];
+    L.push(g);saveCfg();toast(`Added "${v}"`);return}
   if(e.target.id!=='ef')return;e.preventDefault();
   const f=e.target,kind=f.dataset.kind,id=f.dataset.id,prev=id?get(id):null;
   const o=applyTransitions(readForm(f,kind,prev||{id:uid(kind)}),prev);
@@ -630,6 +713,10 @@ document.addEventListener('change',e=>{
   if(t.name==='region'&&t.form){const p=t.form.elements.place;if(p)p.innerHTML=placeOpts(t.value,'')}
   if(t.id==='repMonth'&&t.value){st.repMonth=t.value;render()}
   if(t.id==='repYear'){st.repYear=+t.value;render()}
+  if(t.id==='fLob'){st.tLob=t.value;render()}
+  if(t.id==='fDept'){st.tDept=t.value;render()}
+  if(t.dataset&&t.dataset.hw!==undefined){HOME[+t.dataset.hw].on=t.checked;saveCfg()}
+  if(t.dataset&&t.dataset.cl){const L=cfgList(t.dataset.cl);const it=L[+t.dataset.i];const v=t.value.trim();if(it&&v){it[t.dataset.cf]=v;saveCfg()}else render()}
 });
 
 /* keep the top sheet inside the visible area when the keyboard is open */
@@ -687,10 +774,13 @@ function parseCmd(raw){
   const pls=all('place').sort((a,b)=>b.name.length-a.name.length);
   for(const p of pls){if(rx([p.name]).test(s)){o.place=p.id;o.region=p.region;break}}
   // region
-  if(!o.region){for(const r of REGIONS){const ws=RALIAS[r.id];const ar=ws.filter(w=>/[؀-ۿ]/.test(w)).map(w=>'ب'+w);const all2=ws.concat(ar);
+  if(!o.region){for(const r of REGIONS){const ws=(RALIAS[r.id]||[]).concat([r.name.toLowerCase()]);const ar=ws.filter(w=>/[؀-ۿ]/.test(w)).map(w=>'ب'+w);const all2=ws.concat(ar);
     const strip=new RegExp('(^|\\s)(?:(?:in|at|for|region|في|منطقة|بمنطقة)\\s+)?(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?\\s*[.,]?\\s*$','i');
     const strip2=new RegExp('(^|\\s)(?:in|at|region|في|منطقة|بمنطقة)\\s+(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?'+E,'i');
     if(take(strip)||take(strip2)||rx(all2).test(s)){o.region=r.id;break}}}
+  // line of business / department (kept in title)
+  for(const g of LOBS.slice().sort((a,b)=>b.name.length-a.name.length)){if(rx([g.name]).test(s)){o.lob=g.id;break}}
+  for(const g of DEPTS.slice().sort((a,b)=>b.name.length-a.name.length)){if(rx([g.name]).test(s)){o.dept=g.id;break}}
   // contact (kept in title)
   for(const c of all('contact')){const full=c.name.trim();const first=full.split(/\s+/)[0];
     if(rx([full]).test(s)||(first.length>=3&&rx([first],'(?:with|for|to|call|email|مع|كلم|اتصل على)\\s+').test(s))){o.contact=c.id;break}}
@@ -706,7 +796,7 @@ function parseContact(s,o){
   s=s.trim();
   const em=s.match(/[\w.+-]+@[\w-]+\.[\w.]+/);if(em){o.email=em[0];s=s.replace(em[0],' ')}
   const ph=s.match(/\+?\d[\d\s-]{7,}\d/);if(ph){o.phone=ph[0].replace(/\s+/g,' ').trim();s=s.replace(ph[0],' ')}
-  for(const r of REGIONS){const all2=RALIAS[r.id];const re=new RegExp('(^|[\\s,،])(?:(?:in|region|منطقة)\\s+)?(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?'+E,'i');if(re.test(s)){o.region=r.id;s=s.replace(re,' ');break}}
+  for(const r of REGIONS){const all2=(RALIAS[r.id]||[]).concat([r.name.toLowerCase()]);const re=new RegExp('(^|[\\s,،])(?:(?:in|region|منطقة)\\s+)?(?:'+all2.map(reEsc).join('|')+')(?:\\s+region)?'+E,'i');if(re.test(s)){o.region=r.id;s=s.replace(re,' ');break}}
   const kw=(re,k)=>{const m=s.match(re);if(m){o[k]=m[1].trim();s=s.replace(m[0],' ,')}};
   kw(/(?:department|dept|قسم)\s*(?:is\s+)?([^,،]+)/i,'department');
   kw(/(?:responsible for|in charge of|handles|responsibility|مسؤول عن|مسئول عن|مسؤوليته)\s*([^,،]+)/i,'responsibility');
@@ -781,12 +871,14 @@ Today is ${DOW[d.getDay()]} ${today()} (Asia/Riyadh). The week starts Sunday; Fr
 Always call the respond tool exactly once.
 
 DATA MODEL (all stored text must be English; translate Arabic, transliterate Arabic names to English letters, keep model numbers as said):
-- task: title, stage (TO DO|DOING|PENDING|DONE), priority (HIGH|LOW), due (YYYY-MM-DD), region, place, contact, notes
-- issue (problem waiting for a solution): title, status (OPEN|WAITING|RESOLVED), priority (HIGH|LOW), waitingOn (Customer|Spare parts|Internal dept|Supplier|Other), owner (who must act), region, place, contact, notes. Progress notes go in addLog.
-- opp (opportunity / quotation / contract / deal): title, description, amount (number, SAR), oppStage (LEAD|QUOTED|NEGOTIATION|WON|LOST), priority, due (next step or expected close), region, place, contact
+- task: title, stage (TO DO|DOING|PENDING|DONE), priority (HIGH|LOW), due (YYYY-MM-DD), region, place, contact, lob, dept, notes
+- issue (problem waiting for a solution): title, status (OPEN|WAITING|RESOLVED), priority (HIGH|LOW), waitingOn (Customer|Spare parts|Internal dept|Supplier|Other), owner (who must act), region, place, contact, lob, dept, notes. Progress notes go in addLog.
+- opp (opportunity / quotation / contract / deal): title, description, amount (number, SAR), oppStage (LEAD|QUOTED|NEGOTIATION|WON|LOST), priority, due (next step or expected close), region, place, contact, lob, dept
 - contact: name, department, responsibility, company, region, phone, email, notes
 - place (governorate, city, site or customer inside a region): name, ptype (Governorate|City|Site|Customer), region, notes
-- region ids: asir (Asir, Aseer, عسير, Abha, Khamis Mushait), jazan (Jazan, Jizan, جازان), najran (Najran, نجران)
+- region ids: ${REGIONS.map(r=>r.id+' ('+r.name+({asir:', Aseer, عسير, Abha, Khamis Mushait',jazan:', Jizan, جازان',najran:', نجران'}[r.id]||'')+')').join(', ')}
+- lob = line of business id: ${LOBS.map(x=>x.id+' ('+x.name+')').join(', ')||'none defined'}. Set it when the work clearly belongs to one (e.g. chiller → Chillers, AMC/maintenance contract → Service Contracts).
+- dept = internal department involved, id: ${DEPTS.map(x=>x.id+' ('+x.name+')').join(', ')||'none defined'}. Set it when the user mentions a department or it is obvious (PO → Procurement, invoice/payment → Finance, delivery → Logistics).
 
 RULES
 - New task defaults: stage TO DO, priority LOW. Use HIGH only if the user signals urgency or importance (urgent, important, asap, ضروري, مهم, عاجل, مستعجل, أولوية عالية).
@@ -804,10 +896,10 @@ function aiData(){
   const cut=Date.now()-120*864e5;
   const P=(o,ks)=>{const r={};ks.forEach(k=>{const v=o[k];if(v!==undefined&&v!==null&&v!=='')r[k]=typeof v==='string'&&v.length>240?v.slice(0,240)+'…':v});return r};
   const day=ts=>ts?dstr(new Date(ts)):undefined;
-  const tasks=all('task').filter(t=>isOpenT(t)||(t.doneAt||0)>cut).map(t=>Object.assign(P(t,['id','title','stage','priority','due','region','place','contact','notes']),{created:day(t.createdAt),done:day(t.doneAt)}));
-  const issues=all('issue').filter(i=>issueActive(i)||(i.resolvedAt||0)>cut).map(i=>Object.assign(P(i,['id','title','status','priority','waitingOn','owner','region','place','contact','notes']),{opened:day(i.createdAt),resolved:day(i.resolvedAt),updates:(i.log||[]).slice(-3).map(l=>day(l.t)+': '+l.text)}));
+  const tasks=all('task').filter(t=>isOpenT(t)||(t.doneAt||0)>cut).map(t=>Object.assign(P(t,['id','title','stage','priority','due','region','place','contact','lob','dept','notes']),{created:day(t.createdAt),done:day(t.doneAt)}));
+  const issues=all('issue').filter(i=>issueActive(i)||(i.resolvedAt||0)>cut).map(i=>Object.assign(P(i,['id','title','status','priority','waitingOn','owner','region','place','contact','lob','dept','notes']),{opened:day(i.createdAt),resolved:day(i.resolvedAt),updates:(i.log||[]).slice(-3).map(l=>day(l.t)+': '+l.text)}));
   const y0=new Date().getFullYear();
-  const opps=all('opp').filter(o=>oppActive(o)||new Date(o.closedAt||o.updatedAt).getFullYear()>=y0-1).map(o=>Object.assign(P(o,['id','title','description','amount','oppStage','priority','due','region','place','contact']),{created:day(o.createdAt),closed:day(o.closedAt)}));
+  const opps=all('opp').filter(o=>oppActive(o)||new Date(o.closedAt||o.updatedAt).getFullYear()>=y0-1).map(o=>Object.assign(P(o,['id','title','description','amount','oppStage','priority','due','region','place','contact','lob','dept']),{created:day(o.createdAt),closed:day(o.closedAt)}));
   const contacts=all('contact').map(c=>P(c,['id','name','department','responsibility','company','region','phone','email']));
   const places=all('place').map(p=>P(p,['id','name','ptype','region']));
   const stats={};
@@ -854,6 +946,7 @@ function aiFields(kind,f,refs){
     let v=f[k];if(v===undefined||v===null||v==='')continue;
     if(type==='sel'){const m=arr.find(a=>a.toLowerCase()===String(v).toLowerCase().replace('todo','to do'));if(m)out[k]=m;continue}
     if(type==='region'){const s=String(v).toLowerCase();const r=REGIONS.find(r=>r.id===s||r.name.toLowerCase()===s);if(r)out[k]=r.id;continue}
+    if(type==='lob'||type==='dept'){const s=String(v).toLowerCase();const r=(type==='lob'?LOBS:DEPTS).find(r=>r.id.toLowerCase()===s||r.name.toLowerCase()===s);if(r)out[k]=r.id;continue}
     if(type==='place'||type==='contact'){const id=refs[v]||v;const it=get(id);if(it&&it.kind===type)out[k]=id;continue}
     if(type==='date'){if(/^\d{4}-\d{2}-\d{2}$/.test(String(v)))out[k]=String(v);continue}
     if(type==='num'){const n=Number(String(v).replace(/[^\d.]/g,''));if(isFinite(n))out[k]=n;continue}
@@ -865,7 +958,7 @@ function aiFields(kind,f,refs){
 const DEF={task:{stage:'TO DO',priority:'LOW'},issue:{status:'OPEN',priority:'LOW'},opp:{oppStage:'LEAD',priority:'LOW'},contact:{},place:{ptype:'Site'}};
 function aiDescribe(a){
   const f=a.fields||{};const it=a.id&&get(a.id);const nm=o=>o?(o.title||o.name):'';
-  const bits=o=>{const b=[];if(o.stage)b.push(o.stage);if(o.status)b.push(o.status);if(o.oppStage)b.push(o.oppStage);if(o.priority==='HIGH')b.push('HIGH');if(o.due)b.push(fmtD(o.due));if(o.amount)b.push(money(o.amount));const w=[rname(o.region),o.place&&((get(o.place)||{}).name||aiNames[o.place])].filter(Boolean).join(' › ');if(w)b.push(w);if(o.contact)b.push((get(o.contact)||{}).name||aiNames[o.contact]||'');if(o.waitingOn)b.push('waiting on '+o.waitingOn);if(o.department)b.push(o.department);if(o.responsibility)b.push(o.responsibility);if(o.ptype)b.push(o.ptype);return b.join(' · ')};
+  const bits=o=>{const b=[];if(o.stage)b.push(o.stage);if(o.status)b.push(o.status);if(o.oppStage)b.push(o.oppStage);if(o.priority==='HIGH')b.push('HIGH');if(o.due)b.push(fmtD(o.due));if(o.amount)b.push(money(o.amount));const w=[rname(o.region),o.place&&((get(o.place)||{}).name||aiNames[o.place])].filter(Boolean).join(' › ');if(w)b.push(w);if(o.contact)b.push((get(o.contact)||{}).name||aiNames[o.contact]||'');if(o.lob)b.push(lname(o.lob));if(o.dept)b.push(dname(o.dept));if(o.waitingOn)b.push('waiting on '+o.waitingOn);if(o.department)b.push(o.department);if(o.responsibility)b.push(o.responsibility);if(o.ptype)b.push(o.ptype);return b.join(' · ')};
   if(a.op==='create')return {t:`New ${KNAME[a.kind]||a.kind}: ${f.title||f.name||''}`,s:bits(Object.assign({},a._preview||f))};
   if(a.op==='update')return {t:`Update: ${nm(it)}`,s:[bits(a._preview||{}),a.addLog?'note: '+a.addLog:''].filter(Boolean).join(' · ')};
   if(a.op==='delete')return {t:`Delete ${KNAME[it&&it.kind]||''}: ${nm(it)}`,s:'',danger:true};
@@ -982,7 +1075,7 @@ document.addEventListener('click',e=>{
   if(a==='region'){st.tab='regions';st.region=id||null;st.rPlace='';st.rTab='tasks';window.scrollTo(0,0);return render()}
   if(a==='more'){if(el.dataset.close)closeSheet();st.tab='more';st.more=el.dataset.v||null;window.scrollTo(0,0);return render()}
   if(a==='report'){st.tab='more';st.more='reports';st.rep='month';st.repMonth=el.dataset.m;window.scrollTo(0,0);return render()}
-  if(a==='new'){const k=el.dataset.kind;const base={};if(st.tab==='regions'&&st.region){base.region=st.region;if(st.rPlace&&k!=='place'&&k!=='contact')base.place=st.rPlace}if(k==='place'&&!base.region)base.region='asir';return editSheet(k,base)}
+  if(a==='new'){const k=el.dataset.kind;const base={};if(st.tab==='regions'&&st.region){base.region=st.region;if(st.rPlace&&k!=='place'&&k!=='contact')base.place=st.rPlace}if(k==='place'&&!base.region&&REGIONS[0])base.region=REGIONS[0].id;return editSheet(k,base)}
   if(a==='edit'){const o=get(id);if(o)editSheet(o.kind,o);return}
   if(a==='done'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=o.stage==='DONE'?'TO DO':'DONE';applyTransitions(o,prev);put(o);if(o.stage==='DONE')toast('Done ✓',()=>{put(applyTransitions(Object.assign(o,{stage:prev.stage}),o))});return}
   if(a==='next'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=STAGES[(STAGES.indexOf(o.stage)+1)%STAGES.length];applyTransitions(o,prev);put(o);return}
@@ -990,6 +1083,13 @@ document.addEventListener('click',e=>{
     if(pendingDel!==id){pendingDel=id;el.textContent='Tap again to delete';setTimeout(()=>{if(pendingDel===id)pendingDel=null},3000);return}
     pendingDel=null;const o=remove(id);closeSheet();toast(`${KNAME[o.kind]} deleted`,()=>put(o));return}
   if(a==='cmd')return cmdSheet();
+  if(a==='grp'){const k=el.dataset.k;if(k==='region'){st.tab='regions';st.region=id;st.rPlace='';st.rTab='tasks'}else{st.tab='tasks';st.tStage='OPEN';st.tHigh=false;st.tRegion='';st.tQ='';st.tLob=k==='lob'?id:'';st.tDept=k==='dept'?id:''}window.scrollTo(0,0);return render()}
+  if(a==='cmove'){const L=cfgList(el.dataset.l),i=+el.dataset.i,j=i+(+el.dataset.d);if(j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];return saveCfg()}
+  if(a==='cdel'){const l=el.dataset.l,L=cfgList(l),i=+el.dataset.i,g=L[i];if(!g)return;
+    if(l==='regions'&&L.length<=1)return toast('Keep at least one region');
+    const key=l==='regions'?'region':l==='lobs'?'lob':'dept';const users=[...items.values()].filter(o=>o[key]===g.id&&o.kind!=='config');
+    const tag=l+':'+g.id;if(pendingDel!==tag){pendingDel=tag;el.textContent='Sure?';el.style.minWidth='64px';toast(users.length?`${users.length} item${users.length>1?'s':''} use "${g.name}". Tap again to delete — they will keep everything else.`:`Tap again to delete "${g.name}"`);setTimeout(()=>{if(pendingDel===tag)pendingDel=null},4000);return}
+    pendingDel=null;users.forEach(o=>{delete o[key];put(o,true)});L.splice(i,1);return saveCfg()}
   if(a==='readcmd'){const t=$('#cmdText');const v=t.value.trim();if(!v)return toast('Say or type something first');if(aiOn())return aiRun(v);cmdState.text=v;cmdState.parsed=parseCmd(v);return showParsed()}
   if(a==='aiapply')return aiApply();
   if(a==='ainav'){const n=aiPending&&aiPending.nav;closeSheet();if(n)aiNavigate(n);return}
@@ -1025,7 +1125,7 @@ document.addEventListener('click',e=>{
 $('#importFile').addEventListener('change',async e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   try{const j=JSON.parse(await f.text());const arr=Array.isArray(j)?j:j.items;let n=0;
-    (arr||[]).forEach(o=>{if(o&&o.id&&SPEC[o.kind]){put(o,true);n++}});render();toast(`Imported ${n} item${n===1?'':'s'}`)}
+    (arr||[]).forEach(o=>{if(o&&o.id&&(SPEC[o.kind]||o.kind==='config')){put(o,true);n++}});render();toast(`Imported ${n} item${n===1?'':'s'}`)}
   catch(err){toast('That file is not a Field Desk backup')}
   e.target.value='';
 });
