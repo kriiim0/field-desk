@@ -127,6 +127,9 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 .sheet.on{transform:none;visibility:visible}
 .sheet:not(.on){visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
 @media(prefers-reduced-motion:reduce){.sheet{transition:none}}
+.sheet.top{top:0;bottom:auto;border-radius:0 0 18px 18px;padding-top:calc(env(safe-area-inset-top) + 14px);padding-bottom:16px;transform:translateY(-105%)}
+.sheet.top.on{transform:none}
+.sheet.top .grab{display:none}
 .sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
 .sheethead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
 .f{display:grid;gap:12px}
@@ -577,7 +580,7 @@ function render(){
 }
 
 /* ---------- sheet + forms ---------- */
-function openSheet(html){const s=$('#sheet');s.innerHTML='<div class="grab"></div>'+html;$('#veil').classList.add('on');s.classList.add('on');s.scrollTop=0}
+function openSheet(html,top){const s=$('#sheet');s.classList.toggle('top',!!top);s.style.maxHeight=top&&window.visualViewport?Math.round(visualViewport.height)+'px':'';s.innerHTML='<div class="grab"></div>'+html;$('#veil').classList.add('on');s.classList.add('on');s.scrollTop=0}
 function closeSheet(){$('#sheet').classList.remove('on');$('#veil').classList.remove('on');stopDict();setTimeout(()=>{if(!$('#sheet').classList.contains('on'))$('#sheet').innerHTML=''},260)}
 function placeOpts(region,v){return opt(all('place').filter(p=>!region||p.region===region).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>[p.id,p.name]),v,'—')}
 function fields(kind,o){
@@ -629,6 +632,8 @@ document.addEventListener('change',e=>{
   if(t.id==='repYear'){st.repYear=+t.value;render()}
 });
 
+/* keep the top sheet inside the visible area when the keyboard is open */
+if(window.visualViewport){const fit=()=>{const s=$('#sheet');if(s.classList.contains('top')&&s.classList.contains('on'))s.style.maxHeight=Math.round(visualViewport.height)+'px'};visualViewport.addEventListener('resize',fit);visualViewport.addEventListener('scroll',fit)}
 /* ---------- command parser ---------- */
 const B='(^|[\\s,،.;:!?])',E='(?=$|[\\s,،.;:!?])';
 const reEsc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
@@ -721,9 +726,9 @@ function cmdSheet(){
   openSheet(`<div class="sheethead"><h2 style="margin:0">Say or type</h2><button class="btn small ghost" data-act="close">Close</button></div>
   <div class="row" style="align-items:flex-start;flex-wrap:nowrap"><textarea class="cmd" id="cmdText" placeholder="Task follow up chiller quotation tomorrow high priority Jazan" autocapitalize="sentences"></textarea>
   ${dict?'<button class="mic" id="micBtn" data-act="mic" aria-label="Dictate">'+MICSVG+'</button>':''}</div>
-  <div class="hint"><span>${aiOn()?'AI is on — say anything, in Arabic or English.':'Tap the microphone, or the microphone key on the keyboard.'}</span> <button class="link" data-act="more" data-v="${aiKey()?'help':'ai'}" data-close="1">${aiKey()?'Examples':'Turn on AI'}</button></div>
+  <div class="hint"><span>${aiOn()?'AI is on — say anything, in Arabic or English.':'Tap the microphone key on the keyboard and speak.'}</span> <button class="link" data-act="more" data-v="${aiKey()?'help':'ai'}" data-close="1">${aiKey()?'Examples':'Turn on AI'}</button></div>
   <button class="btn dark" data-act="readcmd" style="width:100%">${aiOn()?'Ask AI':'Read'}</button>
-  <div id="cmdOut"></div>`);
+  <div id="cmdOut"></div>`,true);
   const t=$('#cmdText');if(t){try{t.focus({preventScroll:true})}catch(e){t.focus()}}
 }
 function showParsed(){
