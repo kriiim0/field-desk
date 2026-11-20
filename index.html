@@ -174,6 +174,8 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 .crow .btn:disabled{opacity:.3}
 .sw{display:flex;align-items:center;gap:10px;flex:1;font-weight:600;padding:6px 4px}
 .sw input{width:22px;height:22px;accent-color:var(--acc)}
+.fwrap{display:grid;gap:6px}
+.frow{display:flex;gap:6px;flex-wrap:wrap;padding-left:4px}
 .money{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:700}
 </style>
 </head>
@@ -195,7 +197,7 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
   <button data-tab="tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1.2 1.2L7 5M3.5 12l1.2 1.2L7 11M3.5 18l1.2 1.2L7 17"/></svg>Tasks<span class="badge" id="b-tasks" hidden></span></button>
   <button data-tab="issues"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.5"/></svg>Issues<span class="badge" id="b-issues" hidden></span></button>
   <button data-tab="contacts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 5.2a3.3 3.3 0 0 1 0 6M18 14.6c2 .7 3.2 2.5 3.6 5.4"/></svg>Contacts</button>
-  <button data-tab="regions"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Regions</button>
+  <button data-tab="regions" aria-label="Browse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Browse</button>
   <button data-tab="more"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>More</button>
 </nav>
 
@@ -209,14 +211,17 @@ nav.tabs .badge{position:absolute;top:2px;left:calc(50% + 6px);background:var(--
 /* ---------- constants ---------- */
 const PALETTE=['#ff4a1c','#1550a8','#1d7a4c','#8a3ffc','#b26b00','#0f7c8c','#c2185b','#5d6b2f'];
 const slugId=(p,n)=>p+String(n).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,24)+'-'+Math.random().toString(36).slice(2,5);
-const HOMEW=[['stats','Key numbers'],['banner','Reminders (monthly report, backup)'],['attention','Needs attention'],['today','Today & in progress'],['aging','Issues waiting 7+ days'],['regions','By region'],['lobs','By line of business'],['depts','By department'],['pipeline','Open opportunities']];
+const HOMEW=[['stats','Key numbers'],['banner','Reminders (monthly report, backup)'],['attention','Needs attention'],['followups','Quotations to follow up'],['renewals','Contracts expiring'],['today','Today & in progress'],['aging','Issues waiting 7+ days'],['main','Main view (choose below)'],['pipeline','Open opportunities']];
+const DIMS=[['region','Regions'],['lob','Lines of business'],['dept','Departments']];
+const CTYPES=['None','AMC','Comprehensive','Warranty','Other'];
 const DEF_CFG={
   regions:[{id:'asir',name:'Asir',color:'#ff4a1c'},{id:'jazan',name:'Jazan',color:'#1550a8'},{id:'najran',name:'Najran',color:'#1d7a4c'}],
   depts:['Sales','Service','Spare Parts','Projects','Procurement','Finance','Logistics'].map((n,i)=>({id:'d'+i,name:n})),
   lobs:['Chillers','Service Contracts (AMC)','Spare Parts','Retrofit & Upgrades','Controls & BMS','Unitary & Ducted'].map((n,i)=>({id:'l'+i,name:n})),
-  home:HOMEW.map(([k])=>({k,on:true}))
+  home:HOMEW.map(([k])=>({k,on:k!=='pipeline'})),
+  mainView:'region',followDays:7,renewDays:60
 };
-let REGIONS=DEF_CFG.regions,DEPTS=DEF_CFG.depts,LOBS=DEF_CFG.lobs,HOME=DEF_CFG.home,RCOL={};
+let REGIONS=DEF_CFG.regions,DEPTS=DEF_CFG.depts,LOBS=DEF_CFG.lobs,HOME=DEF_CFG.home,RCOL={},MAINV='region',FDAYS=7,RDAYS=60;
 const STAGES=['TO DO','DOING','PENDING','DONE'];
 const PRI=['HIGH','LOW'];
 const ISTAT=['OPEN','WAITING','RESOLVED'];
@@ -230,7 +235,7 @@ const SPEC={
  issue:[['title','Issue','text'],['status','Status','sel',ISTAT],['priority','Priority','sel',PRI],['waitingOn','Waiting on','sel',WAITON],['owner','Who must act','text'],['region','Region','region'],['place','Place','place'],['contact','Contact','contact'],['notes','Details','area']],
  opp:[['title','Opportunity','text'],['description','Description','area'],['amount','Amount (SAR)','num'],['oppStage','Stage','sel',OSTAGES],['priority','Priority','sel',PRI],['due','Next step / close date','date'],['region','Region','region'],['place','Place','place'],['contact','Contact','contact']],
  contact:[['name','Name','text'],['department','Department','text'],['responsibility','Responsibility','text'],['company','Company / side','text'],['region','Region','region'],['phone','Mobile (optional)','tel'],['email','Email (optional)','email'],['notes','Notes','area']],
- place:[['name','Name','text'],['ptype','Type','sel',PTYPES],['region','Region','region'],['notes','Notes','area']]
+ place:[['name','Name','text'],['ptype','Type','sel',PTYPES],['region','Region','region'],['contractType','Service contract','sel',CTYPES],['contractStart','Contract start','date'],['contractEnd','Contract end','date'],['contractValue','Contract value (SAR)','num'],['notes','Notes','area']]
 };
 const KNAME={task:'Task',issue:'Issue',opp:'Opportunity',contact:'Contact',place:'Place'};
 ['task','issue','opp'].forEach(k=>{const i=SPEC[k].findIndex(f=>f[0]==='contact')+1;SPEC[k].splice(i,0,['lob','Line of business','lob'],['dept','Department','dept'])});
@@ -259,10 +264,11 @@ function applyCfg(){
   DEPTS=Array.isArray(c.depts)?c.depts:DEF_CFG.depts;
   LOBS=Array.isArray(c.lobs)?c.lobs:DEF_CFG.lobs;
   const h=Array.isArray(c.home)?c.home.filter(x=>HOMEW.some(w=>w[0]===x.k)):[];
-  HOMEW.forEach(([k])=>{if(!h.some(x=>x.k===k))h.push({k,on:true})});HOME=h;
+  HOMEW.forEach(([k],i)=>{if(!h.some(x=>x.k===k)){const at=Math.min(i,h.length);h.splice(at,0,{k,on:k!=='pipeline'})}});HOME=h;
+  MAINV=DIMS.some(d=>d[0]===c.mainView)?c.mainView:'region';FDAYS=+c.followDays>0?+c.followDays:7;RDAYS=+c.renewDays>0?+c.renewDays:60;
   RCOL={};REGIONS.forEach((r,i)=>RCOL[r.id]=r.color||PALETTE[i%PALETTE.length]);
 }
-function saveCfg(){put({id:'cfg',kind:'config',regions:REGIONS,depts:DEPTS,lobs:LOBS,home:HOME})}
+function saveCfg(){put({id:'cfg',kind:'config',regions:REGIONS,depts:DEPTS,lobs:LOBS,home:HOME,mainView:MAINV,followDays:FDAYS,renewDays:RDAYS})}
 const opt=(arr,v,blank)=>(blank!==undefined?`<option value="">${blank}</option>`:'')+arr.map(a=>{const [val,lab]=Array.isArray(a)?a:[a,a];return `<option value="${esc(val)}"${val===v?' selected':''}>${esc(lab)}</option>`}).join('');
 
 /* ---------- store ---------- */
@@ -311,13 +317,33 @@ async function initSync(){
 }
 
 /* ---------- ui state ---------- */
-const st={tab:'home',more:null,tStage:'OPEN',tHigh:false,tRegion:'',tLob:'',tDept:'',tQ:'',iStat:'ACTIVE',iQ:'',cQ:'',cDept:'',oStage:'ACTIVE',region:null,rTab:'tasks',rPlace:'',rep:'month',repMonth:today().slice(0,7),repYear:new Date().getFullYear(),repRegion:''};
+const st={tab:'home',more:null,bDim:'region',group:null,gTab:'tasks',tStage:'OPEN',tHigh:false,tRegion:'',tLob:'',tDept:'',tQ:'',iStat:'ACTIVE',iQ:'',cQ:'',cDept:'',oStage:'ACTIVE',region:null,rTab:'tasks',rPlace:'',rep:'month',repMonth:today().slice(0,7),repYear:new Date().getFullYear(),repRegion:''};
 let toastTimer,undoFn=null;
-function toast(msg,undo){const t=$('#toast');t.querySelector('span').textContent=msg;const b=$('#toastBtn');b.hidden=!undo;undoFn=undo||null;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),undo?6000:3200)}
+function toast(msg,undo,label){const t=$('#toast');t.querySelector('span').textContent=msg;const b=$('#toastBtn');b.hidden=!undo;b.textContent=label||'Undo';undoFn=undo||null;t.classList.add('on');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('on'),undo?6000:3200)}
 $('#toastBtn').addEventListener('click',()=>{if(undoFn){undoFn();undoFn=null}$('#toast').classList.remove('on')});
 
 /* ---------- derived ---------- */
 const isOpenT=t=>t.stage!=='DONE';
+const fupBase=o=>Math.max(o.lastFollowUp||0,o.quotedAt||o.createdAt||0);
+const needsFollow=o=>(o.oppStage==='QUOTED'||o.oppStage==='NEGOTIATION')&&daysSince(fupBase(o))>=FDAYS;
+const daysTo=d=>Math.round((parseD(d)-parseD(today()))/864e5);
+const renewDue=p=>p.contractEnd&&p.contractType&&p.contractType!=='None'&&daysTo(p.contractEnd)<=RDAYS&&daysTo(p.contractEnd)>=-30;
+function icsText(title,date,notes,high){
+  const d=date.replace(/-/g,''),e=addDays(date,1).replace(/-/g,''),now=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
+  const escI=t=>String(t||'').replace(/[\\;,]/g,m=>'\\'+m).replace(/\n/g,'\\n');
+  const al=(trig,txt)=>['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+escI(txt),'TRIGGER:'+trig,'END:VALARM'];
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Field Desk//EN','CALSCALE:GREGORIAN','BEGIN:VEVENT','UID:'+uid('e')+'@fielddesk','DTSTAMP:'+now,'DTSTART;VALUE=DATE:'+d,'DTEND;VALUE=DATE:'+e,'SUMMARY:'+escI((high?'[HIGH] ':'')+title),'DESCRIPTION:'+escI(notes||''),
+    ...(high?al('-PT15H','Tomorrow: '+title):[]),...al('PT8H',title),'END:VEVENT','END:VCALENDAR'].join('\r\n');
+}
+async function toCalendar(title,date,notes,high){
+  if(!date){toast('Set a date first');return}
+  const ics=icsText(title,date,notes,high);
+  const ios=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(ios){location.href='data:text/calendar;charset=utf-8,'+encodeURIComponent(ics);return}
+  const file=new File([ics],'field-desk-event.ics',{type:'text/calendar'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title})}catch(e){}return}
+  const url=URL.createObjectURL(file);const a=document.createElement('a');a.href=url;a.download='field-desk-event.ics';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
 const overdue=t=>t.due&&t.due<today()&&isOpenT(t);
 const issueActive=i=>i.status!=='RESOLVED';
 const oppActive=o=>o.oppStage!=='WON'&&o.oppStage!=='LOST';
@@ -348,9 +374,10 @@ function issueCard(i){
   <span class="pill ${i.status}">${i.status}</span></article>`;
 }
 function oppCard(o){
+  const fu=(o.follows||[]).length,nf=needsFollow(o);
   return `<article class="card${o.priority==='HIGH'&&oppActive(o)?' hi':''}" data-act="edit" data-id="${o.id}">
   <div class="body"><div class="t">${esc(o.title)}</div>
-  <div class="meta"><span class="money" style="color:var(--ink)">${money(o.amount)}</span>${o.due?`<span>${fmtD(o.due)}</span>`:''}${where(o)?`<span>${esc(where(o))}</span>`:''}${tags(o)?`<span>${esc(tags(o))}</span>`:''}</div>
+  <div class="meta"><span class="money" style="color:var(--ink)">${money(o.amount)}</span>${nf?`<span class="late">Follow up · ${daysSince(fupBase(o))} days</span>`:''}${fu?`<span>${fu} follow-up${fu>1?'s':''}</span>`:''}${o.due?`<span>${fmtD(o.due)}</span>`:''}${where(o)?`<span>${esc(where(o))}</span>`:''}${tags(o)?`<span>${esc(tags(o))}</span>`:''}</div>
   ${o.description?`<div class="meta">${esc(o.description).slice(0,140)}</div>`:''}</div>
   <span class="pill ${o.oppStage}">${o.oppStage}</span></article>`;
 }
@@ -385,6 +412,8 @@ V.home=()=>{
     return `<h2>${title}</h2><div class="list">${rows.map(x=>`<button class="region" data-act="grp" data-k="${key}" data-id="${x.g.id}" style="padding:12px 14px"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><b>${esc(x.g.name)}</b><span class="sub" style="white-space:nowrap"><b style="color:var(--ink)">${x.n}</b> open${x.h?` · <b style="color:var(--acc)">${x.h} high</b>`:''}${x.i?` · ${x.i} issue${x.i>1?'s':''}`:''}</span></div><div class="bar"><i style="width:${x.n/mx*100}%;background:${key==='region'?RCOL[x.g.id]:'var(--ink)'}"></i></div></button>`).join('')}</div>`;
   };
   const O=all('opp').filter(oppActive).sort((p,q)=>(q.amount||0)-(p.amount||0));
+  const FU=all('opp').filter(needsFollow).sort((p,q)=>fupBase(p)-fupBase(q));
+  const RN=all('place').filter(renewDue).sort((p,q)=>p.contractEnd<q.contractEnd?-1:1);
   const W={
     stats:`<div class="stats">
    <button class="stat${high.length?' hot':''}" data-act="go" data-tab="tasks" data-high="1"><b>${high.length}</b><span>High priority</span></button>
@@ -397,9 +426,9 @@ V.home=()=>{
   ${listOr(attn,taskCard,items.size>1?'Nothing high-priority or overdue.':'Tap the red ✦ button and say something like:<br><b>"Task follow up chiller quotation tomorrow high priority Jazan"</b>')}`,
     today:todayL.length?`<h2>Today &amp; in progress</h2>${listOr(todayL,taskCard)}`:'',
     aging:agingI.length?`<h2>Issues waiting 7+ days</h2>${listOr(agingI,issueCard)}`:'',
-    regions:grp('region',REGIONS,'By region'),
-    lobs:grp('lob',LOBS,'By line of business'),
-    depts:grp('dept',DEPTS,'By department'),
+    main:MAINV==='lob'?grp('lob',LOBS,'By line of business'):MAINV==='dept'?grp('dept',DEPTS,'By department'):grp('region',REGIONS,'By region'),
+    followups:FU.length?`<h2>Quotations to follow up</h2><div class="list">${FU.map(o=>`<div class="fwrap">${oppCard(o)}<div class="frow"><button class="btn small ghost" data-act="fup" data-id="${o.id}">Followed up ✓</button><button class="btn small ghost" data-act="fuptask" data-id="${o.id}">Make a task</button></div></div>`).join('')}</div>`:'',
+    renewals:RN.length?`<h2>Contracts expiring</h2><div class="list">${RN.map(p=>{const n=daysTo(p.contractEnd);const op=p.renewalOpp&&get(p.renewalOpp);return `<div class="fwrap"><article class="card${n<=14?' hi':''}" data-act="edit" data-id="${p.id}"><div class="body"><div class="t">${esc(p.contractType)} · ${esc(p.name)}</div><div class="meta"><span class="${n<=14?'late':''}">${n<0?'Expired '+(-n)+' days ago':n===0?'Ends today':'Ends in '+n+' days'} · ${fmtD(p.contractEnd)}</span>${p.contractValue?`<span class="money">${money(p.contractValue)}</span>`:''}<span>${esc(rname(p.region))}</span></div></div></article><div class="frow">${op?`<button class="btn small ghost" data-act="edit" data-id="${op.id}">Renewal deal: ${esc(op.oppStage)} ›</button>`:`<button class="btn small dark" data-act="renew" data-id="${p.id}">Create renewal opportunity</button>`}<button class="btn small ghost" data-act="cal" data-id="${p.id}">Calendar</button></div></div>`}).join('')}</div>`:'',
     pipeline:`<div class="sectionhead"><h2>Open opportunities</h2><button class="link" data-act="more" data-v="opps">All ›</button></div><p class="sub" style="margin-top:-6px">${O.length} open · <span class="money" style="color:var(--ink)">${money(O.reduce((x,o)=>x+(+o.amount||0),0))}</span></p>${listOr(O.slice(0,3),oppCard,'No open opportunities.')}`
   };
   return `<div class="sub">${DOW[d.getDay()]}, ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}</div>
@@ -465,9 +494,36 @@ function regionStats(id){
   const T=all('task').filter(t=>t.region===id),I=all('issue').filter(i=>i.region===id),O=all('opp').filter(o=>o.region===id);
   return {open:T.filter(isOpenT).length,high:T.filter(t=>isOpenT(t)&&t.priority==='HIGH').length,doneM:T.filter(t=>t.doneAt>=ms).length,issues:I.filter(issueActive).length,pipe:O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0),places:all('place').filter(p=>p.region===id).length};
 }
+const dimSeg=()=>`<div class="kindsw" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:12px">${DIMS.map(([k,n])=>`<button class="${st.bDim===k?'on':''}" data-act="bdim" data-v="${k}">${k==='lob'?'Lines':n}</button>`).join('')}</div>`;
+function groupStats(key,id){
+  const m0=new Date();const ms=new Date(m0.getFullYear(),m0.getMonth(),1).getTime();
+  const T=all('task').filter(t=>t[key]===id),I=all('issue').filter(i=>i[key]===id),O=all('opp').filter(o=>o[key]===id);
+  return {open:T.filter(isOpenT).length,high:T.filter(t=>isOpenT(t)&&t.priority==='HIGH').length,doneM:T.filter(t=>t.doneAt>=ms).length,issues:I.filter(issueActive).length,pipe:O.filter(oppActive).reduce((s,o)=>s+(+o.amount||0),0),won:O.filter(o=>o.oppStage==='WON').reduce((s,o)=>s+(+o.amount||0),0)};
+}
+function groupBrowse(){
+  const key=st.bDim,list=key==='lob'?LOBS:DEPTS,label=key==='lob'?'line of business':'department';
+  if(st.group){
+    const g=list.find(x=>x.id===st.group);if(!g){st.group=null;return groupBrowse()}
+    const s=groupStats(key,g.id);let body='';
+    if(st.gTab==='tasks')body=listOr(all('task').filter(t=>t[key]===g.id).sort(sortTasks),taskCard,'No tasks yet.');
+    if(st.gTab==='issues')body=listOr(all('issue').filter(i=>i[key]===g.id).sort((a,b)=>(a.status==='RESOLVED')-(b.status==='RESOLVED')||a.createdAt-b.createdAt),issueCard,'No issues.');
+    if(st.gTab==='opps')body=listOr(all('opp').filter(o=>o[key]===g.id).sort((a,b)=>(b.amount||0)-(a.amount||0)),oppCard,'No opportunities.');
+    if(st.gTab==='contacts')body=listOr(all('contact').filter(c=>(c.department||'').toLowerCase()===g.name.toLowerCase()).sort((a,b)=>a.name.localeCompare(b.name)),contactCard,'No contacts in this department.');
+    const tabs=[['tasks','Tasks'],['issues','Issues'],['opps','Deals']].concat(key==='dept'?[['contacts','People']]:[]);
+    return `<button class="link" data-act="group" data-id="">‹ All ${key==='lob'?'lines':'departments'}</button>
+    <div class="sectionhead"><h1>${esc(g.name)}</h1><button class="btn pri small" data-act="new" data-kind="task">+ Task</button></div>
+    <div class="stats"><div class="stat${s.high?' hot':''}"><b>${s.high}</b><span>High priority</span></div><div class="stat"><b>${s.open}</b><span>Open tasks</span></div><div class="stat"><b>${s.issues}</b><span>Open issues</span></div><div class="stat"><b>${s.doneM}</b><span>Done this month</span></div></div>
+    ${s.pipe||s.won?`<p class="sub">Open pipeline <span class="money" style="color:var(--ink)">${money(s.pipe)}</span> · Won <span class="money" style="color:var(--ink)">${money(s.won)}</span></p>`:''}
+    <div class="kindsw" style="grid-template-columns:repeat(${tabs.length},minmax(0,1fr))">${tabs.map(([k,n])=>`<button class="${st.gTab===k?'on':''}" data-act="set" data-k="gTab" data-v="${k}">${n}</button>`).join('')}</div>${body}`;
+  }
+  return `<div class="sectionhead"><h1>Browse</h1><button class="btn ghost small" data-act="more" data-v="custom" data-anchor="${key}">Edit list</button></div>${dimSeg()}
+  ${list.length?`<div class="regions">${list.map(g=>{const s=groupStats(key,g.id);return `<button class="region" data-act="group" data-id="${g.id}"><div class="row" style="justify-content:space-between"><h3>${esc(g.name)}</h3>${s.pipe?`<span class="sub money">${money(s.pipe)}</span>`:''}</div>
+   <div class="rgrid"><div><b>${s.open}</b>Open</div><div><b style="color:${s.high?'var(--acc)':'inherit'}">${s.high}</b>High</div><div><b>${s.doneM}</b>Done this month</div><div><b>${s.issues}</b>Issues</div></div></button>`}).join('')}</div>`:`<div class="empty">No ${label}s yet. Tap Edit list to add some.</div>`}`;
+}
 V.regions=()=>{
+  if(st.bDim!=='region')return groupBrowse();
   if(st.region)return regionDetail();
-  return `<h1>Regions</h1><p class="sub">Tap a region to see its places, tasks, issues and opportunities.</p>
+  return `<div class="sectionhead"><h1>Browse</h1><button class="btn ghost small" data-act="more" data-v="custom" data-anchor="regions">Edit list</button></div>${dimSeg()}<p class="sub">Tap a region to see its places, tasks, issues and opportunities.</p>
   <div class="regions">${REGIONS.map(r=>{const s=regionStats(r.id);return `<button class="region" data-act="region" data-id="${r.id}" style="border-top:5px solid ${RCOL[r.id]}">
    <div class="row" style="justify-content:space-between"><h3>${r.name}</h3><span class="sub">${s.places} place${s.places===1?'':'s'}</span></div>
    <div class="rgrid"><div><b>${s.open}</b>Open</div><div><b style="color:${s.high?'var(--acc)':'inherit'}">${s.high}</b>High</div><div><b>${s.doneM}</b>Done this month</div><div><b>${s.issues}</b>Issues</div></div>
@@ -482,7 +538,7 @@ function regionDetail(){
   if(st.rTab==='issues')body=listOr(all('issue').filter(i=>i.region===id&&pf(i)).sort((a,b)=>(a.status==='RESOLVED')-(b.status==='RESOLVED')||a.createdAt-b.createdAt),issueCard,'No issues in this region.');
   if(st.rTab==='opps')body=listOr(all('opp').filter(o=>o.region===id&&pf(o)).sort((a,b)=>(b.amount||0)-(a.amount||0)),oppCard,'No opportunities in this region.');
   if(st.rTab==='contacts')body=listOr(all('contact').filter(c=>c.region===id).sort((a,b)=>a.name.localeCompare(b.name)),contactCard,'No contacts tagged with this region.');
-  if(st.rTab==='places')body=places.length?`<div class="list">${places.map(p=>{const n=all('task').filter(t=>t.place===p.id&&isOpenT(t)).length,ni=all('issue').filter(i=>i.place===p.id&&issueActive(i)).length;return `<article class="card" data-act="edit" data-id="${p.id}"><div class="body"><div class="t">${esc(p.name)}</div><div class="meta"><span>${esc(p.ptype||'')}</span><span>${n} open task${n===1?'':'s'}</span><span>${ni} issue${ni===1?'':'s'}</span></div></div></article>`}).join('')}</div>`:'<div class="empty">Add the governorates, cities, sites or customers you cover in this region.</div>';
+  if(st.rTab==='places')body=places.length?`<div class="list">${places.map(p=>{const n=all('task').filter(t=>t.place===p.id&&isOpenT(t)).length,ni=all('issue').filter(i=>i.place===p.id&&issueActive(i)).length;return `<article class="card${renewDue(p)?' hi':''}" data-act="edit" data-id="${p.id}"><div class="body"><div class="t">${esc(p.name)}</div><div class="meta"><span>${esc(p.ptype||'')}</span>${p.contractType&&p.contractType!=='None'?`<span class="${renewDue(p)?'late':''}">${esc(p.contractType)}${p.contractEnd?' until '+fmtD(p.contractEnd):''}</span>`:''}${(p.equipment||[]).length?`<span>${p.equipment.length} unit${p.equipment.length>1?'s':''}</span>`:''}<span>${n} open task${n===1?'':'s'}</span><span>${ni} issue${ni===1?'':'s'}</span></div></div></article>`}).join('')}</div>`:'<div class="empty">Add the governorates, cities, sites or customers you cover in this region.</div>';
   return `<button class="link" data-act="region" data-id="">‹ All regions</button>
   <div class="sectionhead"><h1 style="border-bottom:5px solid ${RCOL[id]};padding-bottom:4px">${r.name}</h1><button class="btn ghost small" data-act="new" data-kind="place">+ Place</button></div>
   <div class="stats"><div class="stat${s.high?' hot':''}"><b>${s.high}</b><span>High priority</span></div><div class="stat"><b>${s.open}</b><span>Open tasks</span></div><div class="stat"><b>${s.issues}</b><span>Open issues</span></div><div class="stat"><b>${s.doneM}</b><span>Done this month</span></div></div>
@@ -517,10 +573,16 @@ function customView(){
   return `${backBtn}<h1>Customize</h1>
   <h2>Home screen</h2><p class="sub" style="margin-top:-6px">Choose what appears on Home and in which order.</p>
   <div class="list">${HOME.map((h,i)=>`<div class="crow"><label class="sw"><input type="checkbox" data-hw="${i}" ${h.on?'checked':''}><span>${esc((HOMEW.find(w=>w[0]===h.k)||[])[1]||h.k)}</span></label>${arrows('home',i,HOME.length)}</div>`).join('')}</div>
-  <h2>Regions</h2><p class="sub" style="margin-top:-6px">Rename, recolour, reorder, add or remove. The number shows how many items use each one.</p>
+  <h3 style="margin:14px 0 6px">Main view on Home</h3>
+  <div class="chips">${DIMS.map(([k,n])=>`<button class="chip${MAINV===k?' on':''}" data-act="mainv" data-v="${k}">${n}</button>`).join('')}</div>
+  <p class="sub" style="margin-top:0">The other two stay in the Browse tab.</p>
+  <h2>Alerts</h2>
+  <div class="list"><div class="crow"><span style="flex:1;font-weight:600">Remind me to follow up a quotation after</span><input class="cname num" type="number" inputmode="numeric" min="1" data-setn="followDays" value="${FDAYS}" style="max-width:70px;flex:none"><span class="sub">days</span></div>
+  <div class="crow"><span style="flex:1;font-weight:600">Warn me before a contract ends</span><input class="cname num" type="number" inputmode="numeric" min="1" data-setn="renewDays" value="${RDAYS}" style="max-width:70px;flex:none"><span class="sub">days</span></div></div>
+  <h2 id="c-regions">Regions</h2><p class="sub" style="margin-top:-6px">Rename, recolour, reorder, add or remove. The number shows how many items use each one.</p>
   ${listEd('regions',REGIONS,'region','Region')}
-  <h2>Lines of business</h2>${listEd('lobs',LOBS,'lob','Line of business')}
-  <h2>Departments</h2>${listEd('depts',DEPTS,'dept','Department')}
+  <h2 id="c-lob">Lines of business</h2>${listEd('lobs',LOBS,'lob','Line of business')}
+  <h2 id="c-dept">Departments</h2>${listEd('depts',DEPTS,'dept','Department')}
   <p class="sub" style="margin-top:18px">Changes save instantly and are included in your backup.</p>`;
 }
 function oppsView(){
@@ -682,16 +744,27 @@ function applyTransitions(o,prev){
   const now=Date.now();
   if(o.kind==='task'){if(o.stage==='DONE'&&(!prev||prev.stage!=='DONE'))o.doneAt=now;if(o.stage!=='DONE')delete o.doneAt}
   if(o.kind==='issue'){if(o.status==='RESOLVED'&&(!prev||prev.status!=='RESOLVED'))o.resolvedAt=now;if(o.status!=='RESOLVED')delete o.resolvedAt}
+  if(o.kind==='opp'&&o.oppStage==='QUOTED'&&(!prev||prev.oppStage!=='QUOTED'))o.quotedAt=now;
   if(o.kind==='opp'){const c=o.oppStage==='WON'||o.oppStage==='LOST';if(c&&(!prev||prev.oppStage!==o.oppStage))o.closedAt=now;if(!c)delete o.closedAt}
   return o;
 }
 function gcal(t){const d=t.due.replace(/-/g,''),e=addDays(t.due,1).replace(/-/g,'');return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent((t.priority==='HIGH'?'[HIGH] ':'')+t.title)}&dates=${d}/${e}&details=${encodeURIComponent([where(t),t.notes].filter(Boolean).join('\n'))}`}
+let eqDraft=[];
+const eqRows=()=>eqDraft.length?eqDraft.map((e,i)=>`<div class="crow"><div style="flex:1"><b>${esc(e.type||'Unit')}</b>${e.model?' · '+esc(e.model):''}<div class="sub">${[e.serial?'S/N '+e.serial:'',e.year?'Installed '+e.year:'',e.notes||''].filter(Boolean).map(esc).join(' · ')}</div></div><button class="btn small danger" type="button" data-act="eqdel" data-i="${i}" aria-label="Remove">✕</button></div>`).join(''):'<div class="sub">No equipment recorded.</div>';
+function eqSection(o){
+  eqDraft=JSON.parse(JSON.stringify(o.equipment||[]));
+  return `<h3 style="margin-top:8px">Equipment</h3><div class="list" id="eqList">${eqRows()}</div>
+  <div class="two"><input id="eqType" placeholder="Type (e.g. Chiller)" list="dl-eq"><input id="eqModel" placeholder="Model"></div>
+  <div class="two"><input id="eqSerial" placeholder="Serial no."><input id="eqYear" placeholder="Year installed" inputmode="numeric"></div>
+  <datalist id="dl-eq">${['Chiller','AHU','FCU','Package unit','Split unit','VRF','Cooling tower','Pump','Controls / BMS'].map(x=>`<option value="${x}">`).join('')}</datalist>
+  <button class="btn small ghost" type="button" data-act="eqadd">+ Add equipment</button>`;
+}
 function editSheet(kind,o){
   const isNew=!o.id;
-  const extra=kind==='issue'&&!isNew?`<h3 style="margin-top:8px">Updates</h3><div class="log">${(o.log||[]).slice().reverse().map(l=>`<div>${esc(l.text)}<small>${fmtTs(l.t)}</small></div>`).join('')||'<div class="sub">No updates yet.</div>'}</div><label>Add an update<input name="logText" placeholder="e.g. Customer approved PO, parts ETA 2 weeks"></label>`:'';
+  const extra=kind==='place'?eqSection(o):kind==='opp'&&!isNew?`<h3 style="margin-top:8px">Follow-ups</h3><div class="log">${(o.follows||[]).slice().reverse().map(l=>`<div>${esc(l.text||'Followed up')}<small>${fmtTs(l.t)}</small></div>`).join('')||'<div class="sub">No follow-ups logged yet.</div>'}</div><label>Log a follow-up<input name="fupText" placeholder="e.g. Called Ahmed, decision next week"></label>`:kind==='issue'&&!isNew?`<h3 style="margin-top:8px">Updates</h3><div class="log">${(o.log||[]).slice().reverse().map(l=>`<div>${esc(l.text)}<small>${fmtTs(l.t)}</small></div>`).join('')||'<div class="sub">No updates yet.</div>'}</div><label>Add an update<input name="logText" placeholder="e.g. Customer approved PO, parts ETA 2 weeks"></label>`:'';
   openSheet(`<div class="sheethead"><h2 style="margin:0">${isNew?'New ':''}${KNAME[kind]}</h2><button class="btn small ghost" data-act="close">Close</button></div>
   <form class="f" id="ef" data-kind="${kind}" data-id="${o.id||''}">${fields(kind,o)}${extra}
-  ${kind==='task'&&o.due&&!isNew?`<a class="link" href="${gcal(o)}" target="_blank" rel="noopener">Add to Google Calendar ›</a>`:''}
+  ${(kind==='task'||kind==='opp')&&o.due&&!isNew?`<div class="row"><button class="btn small dark" type="button" data-act="cal" data-id="${o.id}">Add to iPhone Calendar</button><a class="link" href="${gcal(o)}" target="_blank" rel="noopener">Google Calendar ›</a></div>`:''}
   ${!isNew?`<p class="sub" style="margin:0">Created ${fmtTs(o.createdAt)}${o.doneAt?' · done '+fmtTs(o.doneAt):''}</p>`:''}
   <div class="actions"><button class="btn pri" type="submit">Save</button>${!isNew?`<button class="btn danger" type="button" data-act="del" data-id="${o.id}">Delete</button>`:''}</div></form>`);
 }
@@ -705,8 +778,11 @@ document.addEventListener('submit',e=>{
   const f=e.target,kind=f.dataset.kind,id=f.dataset.id,prev=id?get(id):null;
   const o=applyTransitions(readForm(f,kind,prev||{id:uid(kind)}),prev);
   if(f.elements.logText&&f.elements.logText.value.trim()){o.log=(o.log||[]).concat({t:Date.now(),text:f.elements.logText.value.trim()})}
+  if(f.elements.fupText&&f.elements.fupText.value.trim()){o.follows=(o.follows||[]).concat({t:Date.now(),text:f.elements.fupText.value.trim()});o.lastFollowUp=Date.now()}
+  if(kind==='place')o.equipment=eqDraft.slice();
+  const wasNewHigh=!prev&&kind==='task'&&o.priority==='HIGH'&&o.due;
   if(!(o.title||o.name)){toast('Please enter a '+(kind==='contact'||kind==='place'?'name':'title'));return}
-  put(o);closeSheet();toast(`${KNAME[kind]} saved`);
+  put(o);closeSheet();if(wasNewHigh)toast('High-priority task saved',()=>toCalendar(o.title,o.due,where(o),true),'Add to Calendar');else toast(`${KNAME[kind]} saved`);
 });
 document.addEventListener('change',e=>{
   const t=e.target;
@@ -715,6 +791,7 @@ document.addEventListener('change',e=>{
   if(t.id==='repYear'){st.repYear=+t.value;render()}
   if(t.id==='fLob'){st.tLob=t.value;render()}
   if(t.id==='fDept'){st.tDept=t.value;render()}
+  if(t.dataset&&t.dataset.setn){const n=Math.max(1,Math.round(+t.value||0));if(t.dataset.setn==='followDays')FDAYS=n;else RDAYS=n;saveCfg()}
   if(t.dataset&&t.dataset.hw!==undefined){HOME[+t.dataset.hw].on=t.checked;saveCfg()}
   if(t.dataset&&t.dataset.cl){const L=cfgList(t.dataset.cl);const it=L[+t.dataset.i];const v=t.value.trim();if(it&&v){it[t.dataset.cf]=v;saveCfg()}else render()}
 });
@@ -854,7 +931,8 @@ const AI_TOOL={name:'respond',description:'Reply to the user and list the action
     id:{type:'string',description:'Existing item id (update, delete, show).'},
     ref:{type:'string',description:'Temporary id like "new1" for an item you create, so other actions in this response can link to it (e.g. fields.place:"new1").'},
     fields:{type:'object',description:'Field values to set. Text in English.',additionalProperties:true},
-    addLog:{type:'string',description:'Issue progress note to append (English).'},
+    addLog:{type:'string',description:'Issue: progress note to append. Opportunity: a follow-up note (marks the quotation as followed up today). English.'},
+    addEquipment:{type:'array',description:'Place only: equipment units to add.',items:{type:'object',properties:{type:{type:'string'},model:{type:'string'},serial:{type:'string'},year:{type:'string'},notes:{type:'string'}}}},
     tab:{type:'string',enum:['home','tasks','issues','contacts','regions','reports','opps']},
     region:{type:'string',description:'Region id for navigate to a region.'},
     month:{type:'string',description:'YYYY-MM for navigate to a monthly report.'},
@@ -875,7 +953,8 @@ DATA MODEL (all stored text must be English; translate Arabic, transliterate Ara
 - issue (problem waiting for a solution): title, status (OPEN|WAITING|RESOLVED), priority (HIGH|LOW), waitingOn (Customer|Spare parts|Internal dept|Supplier|Other), owner (who must act), region, place, contact, lob, dept, notes. Progress notes go in addLog.
 - opp (opportunity / quotation / contract / deal): title, description, amount (number, SAR), oppStage (LEAD|QUOTED|NEGOTIATION|WON|LOST), priority, due (next step or expected close), region, place, contact, lob, dept
 - contact: name, department, responsibility, company, region, phone, email, notes
-- place (governorate, city, site or customer inside a region): name, ptype (Governorate|City|Site|Customer), region, notes
+- place (governorate, city, site or customer inside a region): name, ptype (Governorate|City|Site|Customer), region, contractType (None|AMC|Comprehensive|Warranty|Other), contractStart, contractEnd (YYYY-MM-DD), contractValue (SAR), notes. Equipment units (type, model, serial, year) are added with addEquipment.
+- Quotation follow-up: when the user says they followed up / called about a quotation, update that opp with addLog (no other change needed). Opps with stage QUOTED/NEGOTIATION not followed up for ${FDAYS} days are 'due for follow-up'. Contracts ending within ${RDAYS} days are 'expiring'.
 - region ids: ${REGIONS.map(r=>r.id+' ('+r.name+({asir:', Aseer, عسير, Abha, Khamis Mushait',jazan:', Jizan, جازان',najran:', نجران'}[r.id]||'')+')').join(', ')}
 - lob = line of business id: ${LOBS.map(x=>x.id+' ('+x.name+')').join(', ')||'none defined'}. Set it when the work clearly belongs to one (e.g. chiller → Chillers, AMC/maintenance contract → Service Contracts).
 - dept = internal department involved, id: ${DEPTS.map(x=>x.id+' ('+x.name+')').join(', ')||'none defined'}. Set it when the user mentions a department or it is obvious (PO → Procurement, invoice/payment → Finance, delivery → Logistics).
@@ -899,9 +978,9 @@ function aiData(){
   const tasks=all('task').filter(t=>isOpenT(t)||(t.doneAt||0)>cut).map(t=>Object.assign(P(t,['id','title','stage','priority','due','region','place','contact','lob','dept','notes']),{created:day(t.createdAt),done:day(t.doneAt)}));
   const issues=all('issue').filter(i=>issueActive(i)||(i.resolvedAt||0)>cut).map(i=>Object.assign(P(i,['id','title','status','priority','waitingOn','owner','region','place','contact','lob','dept','notes']),{opened:day(i.createdAt),resolved:day(i.resolvedAt),updates:(i.log||[]).slice(-3).map(l=>day(l.t)+': '+l.text)}));
   const y0=new Date().getFullYear();
-  const opps=all('opp').filter(o=>oppActive(o)||new Date(o.closedAt||o.updatedAt).getFullYear()>=y0-1).map(o=>Object.assign(P(o,['id','title','description','amount','oppStage','priority','due','region','place','contact','lob','dept']),{created:day(o.createdAt),closed:day(o.closedAt)}));
+  const opps=all('opp').filter(o=>oppActive(o)||new Date(o.closedAt||o.updatedAt).getFullYear()>=y0-1).map(o=>Object.assign(P(o,['id','title','description','amount','oppStage','priority','due','region','place','contact','lob','dept']),{created:day(o.createdAt),closed:day(o.closedAt),quoted:day(o.quotedAt),lastFollowUp:day(o.lastFollowUp),followUps:(o.follows||[]).length,dueForFollowUp:needsFollow(o)||undefined}));
   const contacts=all('contact').map(c=>P(c,['id','name','department','responsibility','company','region','phone','email']));
-  const places=all('place').map(p=>P(p,['id','name','ptype','region']));
+  const places=all('place').map(p=>Object.assign(P(p,['id','name','ptype','region','contractType','contractStart','contractEnd','contractValue']),{equipment:(p.equipment||[]).map(e=>[e.type,e.model,e.serial,e.year].filter(Boolean).join(' / '))}));
   const stats={};
   [y0,y0-1].forEach(y=>{stats[y]={};[...REGIONS.map(r=>r.id),''].forEach(rid=>{
     const a=new Date(y,0,1).getTime(),b=new Date(y+1,0,1).getTime();const f=o=>(o.region||'')===rid;
@@ -960,7 +1039,7 @@ function aiDescribe(a){
   const f=a.fields||{};const it=a.id&&get(a.id);const nm=o=>o?(o.title||o.name):'';
   const bits=o=>{const b=[];if(o.stage)b.push(o.stage);if(o.status)b.push(o.status);if(o.oppStage)b.push(o.oppStage);if(o.priority==='HIGH')b.push('HIGH');if(o.due)b.push(fmtD(o.due));if(o.amount)b.push(money(o.amount));const w=[rname(o.region),o.place&&((get(o.place)||{}).name||aiNames[o.place])].filter(Boolean).join(' › ');if(w)b.push(w);if(o.contact)b.push((get(o.contact)||{}).name||aiNames[o.contact]||'');if(o.lob)b.push(lname(o.lob));if(o.dept)b.push(dname(o.dept));if(o.waitingOn)b.push('waiting on '+o.waitingOn);if(o.department)b.push(o.department);if(o.responsibility)b.push(o.responsibility);if(o.ptype)b.push(o.ptype);return b.join(' · ')};
   if(a.op==='create')return {t:`New ${KNAME[a.kind]||a.kind}: ${f.title||f.name||''}`,s:bits(Object.assign({},a._preview||f))};
-  if(a.op==='update')return {t:`Update: ${nm(it)}`,s:[bits(a._preview||{}),a.addLog?'note: '+a.addLog:''].filter(Boolean).join(' · ')};
+  if(a.op==='update')return {t:`Update: ${nm(it)}`,s:[bits(a._preview||{}),a.addLog?(it&&it.kind==='opp'?'follow-up: ':'note: ')+a.addLog:'',(a.addEquipment||[]).length?'+'+a.addEquipment.length+' equipment':''].filter(Boolean).join(' · ')};
   if(a.op==='delete')return {t:`Delete ${KNAME[it&&it.kind]||''}: ${nm(it)}`,s:'',danger:true};
   return {t:'',s:''};
 }
@@ -981,7 +1060,7 @@ function aiPrepare(actions){
     if(a.op==='update'){const it=get(a.id);a._preview=aiFields(it.kind,a.fields,refs);a.kind=it.kind}
   });
   tmp.forEach(id=>items.delete(id));
-  return ok.filter(a=>a.op!=='create'||(a._preview.title||a._preview.name)).filter(a=>a.op!=='update'||Object.keys(a._preview).length||a.addLog);
+  return ok.filter(a=>a.op!=='create'||(a._preview.title||a._preview.name)).filter(a=>a.op!=='update'||Object.keys(a._preview).length||a.addLog||(a.addEquipment||[]).length);
 }
 function aiRender(res){
   const out=$('#cmdOut');if(!out)return;
@@ -1003,8 +1082,8 @@ function aiApply(){
   const chosen=aiPending.changes.filter((a,i)=>{const b=boxes.find(x=>+x.dataset.ai===i);return !b||b.checked});
   const undo=[];let n=0;
   chosen.forEach(a=>{
-    if(a.op==='create'){const o=applyTransitions(Object.assign({id:a._newId,kind:a.kind},a._preview),null);put(o,true);undo.push(()=>remove(o.id));n++}
-    if(a.op==='update'){const it=get(a.id);if(!it)return;const prev=JSON.parse(JSON.stringify(it));const o=Object.assign({},it,a._preview);if(a.addLog)o.log=(o.log||[]).concat({t:Date.now(),text:a.addLog});applyTransitions(o,prev);put(o,true);undo.push(()=>put(prev,true));n++}
+    if(a.op==='create'){const o=applyTransitions(Object.assign({id:a._newId,kind:a.kind},a._preview),null);if(a.kind==='place'&&Array.isArray(a.addEquipment))o.equipment=a.addEquipment.map(e=>({type:String(e.type||''),model:String(e.model||''),serial:String(e.serial||''),year:String(e.year||''),notes:String(e.notes||'')}));put(o,true);undo.push(()=>remove(o.id));n++}
+    if(a.op==='update'){const it=get(a.id);if(!it)return;const prev=JSON.parse(JSON.stringify(it));const o=Object.assign({},it,a._preview);if(a.addLog){if(o.kind==='opp'){o.follows=(o.follows||[]).concat({t:Date.now(),text:a.addLog});o.lastFollowUp=Date.now()}else o.log=(o.log||[]).concat({t:Date.now(),text:a.addLog})}if(Array.isArray(a.addEquipment)&&o.kind==='place')o.equipment=(o.equipment||[]).concat(a.addEquipment.map(e=>({type:String(e.type||''),model:String(e.model||''),serial:String(e.serial||''),year:String(e.year||''),notes:String(e.notes||'')})));applyTransitions(o,prev);put(o,true);undo.push(()=>put(prev,true));n++}
     if(a.op==='delete'){const it=get(a.id);if(!it)return;const prev=JSON.parse(JSON.stringify(it));items.delete(a.id);saveLocal();if(col)write(a.id,()=>col.doc(a.id).delete());undo.push(()=>put(prev,true));n++}
   });
   const nav=aiPending.nav;aiPending=null;closeSheet();
@@ -1015,7 +1094,7 @@ function aiNavigate(a){
   const t=a.tab||'home';
   if(t==='reports'){st.tab='more';st.more='reports';if(a.year&&!a.month){st.rep='year';st.repYear=a.year}else{st.rep='month';if(a.month&&/^\d{4}-\d{2}$/.test(a.month))st.repMonth=a.month}if(a.region)st.repRegion=a.region}
   else if(t==='opps'){st.tab='more';st.more='opps'}
-  else if(t==='regions'){st.tab='regions';st.region=REGIONS.some(r=>r.id===a.region)?a.region:null;st.rTab='tasks';st.rPlace=''}
+  else if(t==='regions'){st.tab='regions';st.bDim='region';st.group=null;st.region=REGIONS.some(r=>r.id===a.region)?a.region:null;st.rTab='tasks';st.rPlace=''}
   else if(['home','tasks','issues','contacts'].includes(t))st.tab=t;
   window.scrollTo(0,0);render();
 }
@@ -1066,16 +1145,16 @@ let pendingDel=null;
 document.addEventListener('click',e=>{
   if(e.target.closest('[data-stop]'))return;
   const el=e.target.closest('[data-act],[data-tab]');if(!el)return;
-  if(el.closest('#tabs')&&el.dataset.tab){st.tab=el.dataset.tab;if(st.tab==='more')st.more=null;if(st.tab==='regions')st.region=null;window.scrollTo(0,0);render();return}
+  if(el.closest('#tabs')&&el.dataset.tab){st.tab=el.dataset.tab;if(st.tab==='more')st.more=null;if(st.tab==='regions'){st.region=null;st.group=null}window.scrollTo(0,0);render();return}
   const a=el.dataset.act,id=el.dataset.id;
   if(a==='close')return closeSheet();
   if(a==='go'){st.tab=el.dataset.tab;if(el.dataset.high){st.tHigh=true;st.tStage='OPEN'}window.scrollTo(0,0);return render()}
   if(a==='set'){st[el.dataset.k]=el.dataset.v;return render()}
   if(a==='toggle'){st[el.dataset.k]=!st[el.dataset.k];return render()}
   if(a==='region'){st.tab='regions';st.region=id||null;st.rPlace='';st.rTab='tasks';window.scrollTo(0,0);return render()}
-  if(a==='more'){if(el.dataset.close)closeSheet();st.tab='more';st.more=el.dataset.v||null;window.scrollTo(0,0);return render()}
+  if(a==='more'){if(el.dataset.close)closeSheet();st.tab='more';st.more=el.dataset.v||null;window.scrollTo(0,0);render();if(el.dataset.anchor){const h=document.getElementById('c-'+el.dataset.anchor);if(h)h.scrollIntoView()}return}
   if(a==='report'){st.tab='more';st.more='reports';st.rep='month';st.repMonth=el.dataset.m;window.scrollTo(0,0);return render()}
-  if(a==='new'){const k=el.dataset.kind;const base={};if(st.tab==='regions'&&st.region){base.region=st.region;if(st.rPlace&&k!=='place'&&k!=='contact')base.place=st.rPlace}if(k==='place'&&!base.region&&REGIONS[0])base.region=REGIONS[0].id;return editSheet(k,base)}
+  if(a==='new'){const k=el.dataset.kind;const base={};if(st.tab==='regions'&&st.group&&st.bDim!=='region'){base[st.bDim]=st.group}if(st.tab==='regions'&&st.region&&st.bDim==='region'){base.region=st.region;if(st.rPlace&&k!=='place'&&k!=='contact')base.place=st.rPlace}if(k==='place'&&!base.region&&REGIONS[0])base.region=REGIONS[0].id;return editSheet(k,base)}
   if(a==='edit'){const o=get(id);if(o)editSheet(o.kind,o);return}
   if(a==='done'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=o.stage==='DONE'?'TO DO':'DONE';applyTransitions(o,prev);put(o);if(o.stage==='DONE')toast('Done ✓',()=>{put(applyTransitions(Object.assign(o,{stage:prev.stage}),o))});return}
   if(a==='next'){const o=get(id);if(!o)return;const prev=Object.assign({},o);o.stage=STAGES[(STAGES.indexOf(o.stage)+1)%STAGES.length];applyTransitions(o,prev);put(o);return}
@@ -1083,7 +1162,16 @@ document.addEventListener('click',e=>{
     if(pendingDel!==id){pendingDel=id;el.textContent='Tap again to delete';setTimeout(()=>{if(pendingDel===id)pendingDel=null},3000);return}
     pendingDel=null;const o=remove(id);closeSheet();toast(`${KNAME[o.kind]} deleted`,()=>put(o));return}
   if(a==='cmd')return cmdSheet();
-  if(a==='grp'){const k=el.dataset.k;if(k==='region'){st.tab='regions';st.region=id;st.rPlace='';st.rTab='tasks'}else{st.tab='tasks';st.tStage='OPEN';st.tHigh=false;st.tRegion='';st.tQ='';st.tLob=k==='lob'?id:'';st.tDept=k==='dept'?id:''}window.scrollTo(0,0);return render()}
+  if(a==='grp'){const k=el.dataset.k;st.tab='regions';st.bDim=k;if(k==='region'){st.region=id;st.rPlace='';st.rTab='tasks'}else{st.group=id;st.gTab='tasks'}window.scrollTo(0,0);return render()}
+  if(a==='bdim'){st.bDim=el.dataset.v;st.group=null;st.region=null;return render()}
+  if(a==='group'){st.group=id||null;st.gTab='tasks';window.scrollTo(0,0);return render()}
+  if(a==='mainv'){MAINV=el.dataset.v;return saveCfg()}
+  if(a==='fup'){const o=get(id);if(!o)return;const prev=JSON.parse(JSON.stringify(o));o.follows=(o.follows||[]).concat({t:Date.now(),text:'Followed up'});o.lastFollowUp=Date.now();put(o);toast('Follow-up logged',()=>put(prev));return}
+  if(a==='fuptask'){const o=get(id);if(!o)return;return editSheet('task',{title:'Follow up quotation: '+o.title,priority:o.priority||'LOW',due:today(),region:o.region,place:o.place,contact:o.contact,lob:o.lob,dept:o.dept,stage:'TO DO'})}
+  if(a==='renew'){const p=get(id);if(!p)return;const lob=LOBS.find(x=>/contract|amc/i.test(x.name));const o=applyTransitions({id:uid('opp'),kind:'opp',title:`${p.contractType} renewal – ${p.name}`,oppStage:'LEAD',priority:daysTo(p.contractEnd)<=30?'HIGH':'LOW',due:p.contractEnd,region:p.region,place:p.id,amount:+p.contractValue||0,lob:lob&&lob.id},null);put(o,true);p.renewalOpp=o.id;put(p);toast('Renewal opportunity created');return}
+  if(a==='cal'){const o=get(id);if(!o)return;if(o.kind==='place')return toCalendar(`${o.contractType} contract ends – ${o.name}`,o.contractEnd,rname(o.region),true);return toCalendar(o.title,o.due,[where(o),o.notes||o.description].filter(Boolean).join('\n'),o.priority==='HIGH')}
+  if(a==='eqadd'){const g=i=>($('#'+i).value||'').trim();const e={type:g('eqType'),model:g('eqModel'),serial:g('eqSerial'),year:g('eqYear')};if(!e.type&&!e.model)return toast('Enter at least a type or model');eqDraft.push(e);['eqType','eqModel','eqSerial','eqYear'].forEach(i=>$('#'+i).value='');$('#eqList').innerHTML=eqRows();return}
+  if(a==='eqdel'){eqDraft.splice(+el.dataset.i,1);$('#eqList').innerHTML=eqRows();return}
   if(a==='cmove'){const L=cfgList(el.dataset.l),i=+el.dataset.i,j=i+(+el.dataset.d);if(j<0||j>=L.length)return;[L[i],L[j]]=[L[j],L[i]];return saveCfg()}
   if(a==='cdel'){const l=el.dataset.l,L=cfgList(l),i=+el.dataset.i,g=L[i];if(!g)return;
     if(l==='regions'&&L.length<=1)return toast('Keep at least one region');
@@ -1137,7 +1225,7 @@ document.addEventListener('keydown',e=>{
 render();setSync('local');initSync();
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
 if('serviceWorker' in navigator&&window.isSecureContext)navigator.serviceWorker.register('sw.js').catch(()=>{});
-window.__fd={parseCmd};
+window.__fd={parseCmd,icsText};
 }
 </script>
 </body>
